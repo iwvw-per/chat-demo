@@ -465,10 +465,13 @@
 
 .formField {
   display: flex;
-  flex: 1 1 160px;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+}
+
+.formRow .formField {
+  flex: 1 1 160px;
 }
 
 .formLabel {

@@ -440,3 +440,211 @@
     max-width: 100%;
   }
 }
+
+.sectionTitle {
+  flex-shrink: 0;
+  margin: 18px 0 2px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.formStack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 6px 0 16px;
+}
+
+.formRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.formField {
+  display: flex;
+  flex: 1 1 160px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.formLabel {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.formInput {
+  box-sizing: border-box;
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  outline: none;
+  background-color: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  transition: border-color var(--ds-transition-duration) var(--ds-ease-in-out);
+}
+
+.formInput:focus {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.formInput::placeholder {
+  color: var(--dsw-alias-label-caption);
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.formSuccess {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-brand-text);
+}
+
+.accountValue {
+  font-size: 14px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.userList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 16px;
+}
+
+.userRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background-color: var(--dsw-specific-sidebar-fill);
+}
+
+.userMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.userName {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-primary);
+}
+
+.userRole {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.rowActions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+@media not all and (min-width: 768px) {
+  .formRow {
+    flex-direction: column;
+  }
+
+  .userRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rowActions > button {
+    flex: 1;
+  }
+}
+
+.userRow {
+  flex-wrap: wrap;
+}
+
+.userReset {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: 8px;
+}
+
+.userReset .formInput {
+  flex: 1;
+  min-width: 120px;
+}
+
+@media not all and (min-width: 768px) {
+  .userReset {
+    flex-wrap: wrap;
+  }
+}
+
+.formTextarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 64px;
+  padding: 8px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  outline: none;
+  background-color: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  resize: vertical;
+  transition: border-color var(--ds-transition-duration) var(--ds-ease-in-out);
+}
+
+.formTextarea:focus {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.formHint {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.checkboxList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  padding: 2px 0 4px;
+}
+
+.checkboxRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.checkboxRow input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--dsw-alias-brand-primary);
+  cursor: pointer;
+}

@@ -1,4 +1,5 @@
 import { translate, type TranslationMessage } from '../../i18n/index.js'
+import { UNAUTHORIZED_EVENT } from './backend.js'
 import { readMessageEvent } from './parseEvent.js'
 import { readServerSentEvents } from './sse.js'
 import type {
@@ -9,23 +10,23 @@ import type {
   MessageStreamEvent,
 } from './types.js'
 
-/** 构建期 API 地址，默认 https://api.deepseek.com；本地开发支持开发服务器代理 */
-export const API_ORIGIN = __API_ORIGIN__
+/** 后端同源代理地址;上游密钥由服务端注入 */
+const LLM_BASE_URL = '/api/llm'
 /** Anthropic 兼容接口的前缀 */
-const ANTHROPIC_BASE_URL = `${API_ORIGIN}/anthropic/v1`
+const ANTHROPIC_BASE_URL = `${LLM_BASE_URL}/anthropic/v1`
 /** 引用 Files API 上传的图片、调用 Anthropic 兼容 Files API 时必须携带 */
 const FILES_BETA = 'files-api-2025-04-14'
 
 export type ApiErrorKind =
   /** 非 2xx 响应 */
   | 'http'
-  /** 流中返回的错误帧（如等待生成超时），随后连接关闭 */
+  /** 流中返回的错误帧(如等待生成超时),随后连接关闭 */
   | 'stream'
-  /** 请求没有到达服务端（断网、跨域被拦截等） */
+  /** 请求没有到达服务端(断网、跨域被拦截等) */
   | 'network'
   /** 流在 message_stop 之前结束 */
   | 'interrupted'
-  /** 响应不符合协议（如非 SSE 响应） */
+  /** 响应不符合协议(如非 SSE 响应) */
   | 'protocol'
 
 export class ApiError extends Error {
@@ -55,13 +56,21 @@ const readErrorResponse = async (
 ): Promise<ApiError> => {
   const text = await response.text().catch(() => '')
   let message = text || fallback
+  let code: string | undefined
   try {
     const body: unknown = JSON.parse(text)
     if (isErrorBody(body)) {
       message = body.error.message
     }
+    if (typeof body === 'object' && body !== null && 'error' in body) {
+      const value = (body as { error?: { code?: unknown } }).error?.code
+      code = typeof value === 'string' ? value : undefined
+    }
   } catch {
     // 非 JSON 响应体直接展示原文
+  }
+  if (response.status === 401 && code === 'unauthorized' && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
   }
   return new ApiError(kind, message, response.status)
 }
@@ -82,28 +91,14 @@ export const request = async (url: string, init: RequestInit): Promise<Response>
   return response
 }
 
-const anthropicHeaders = (apiKey: string, beta: boolean): Record<string, string> => ({
-  // DeepSeek 兼容接口的鉴权方式，也可使用 Authorization: Bearer。
-  'x-api-key': apiKey,
-  // Files API 和通过 file_id 引用图片时必传；纯文本聊天无需携带。
-  ...(beta ? { 'anthropic-beta': FILES_BETA } : {}),
-})
-
-/** 用 GET /models 校验 API Key（不产生费用） */
-export const verifyApiKey = async (apiKey: string, signal?: AbortSignal): Promise<void> => {
-  await request(`${API_ORIGIN}/models`, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    signal,
-  })
-}
+const anthropicHeaders = (beta: boolean): Record<string, string> =>
+  beta ? { 'anthropic-beta': FILES_BETA } : {}
 
 /**
- * POST /anthropic/v1/files 上传附件（不设过期时间，会话里的历史附件一直可用）。
- * purpose 为 null 时不传该字段（图片）；purpose 必须排在 file 之前。
+ * POST /anthropic/v1/files 上传附件(不设过期时间,会话里的历史附件一直可用)。
+ * purpose 为 null 时不传该字段(图片);purpose 必须排在 file 之前。
  */
 export const uploadFile = async (
-  apiKey: string,
   file: File,
   purpose: FilePurpose | null,
   signal?: AbortSignal
@@ -115,7 +110,7 @@ export const uploadFile = async (
   form.append('file', file)
   const response = await request(`${ANTHROPIC_BASE_URL}/files`, {
     method: 'POST',
-    headers: anthropicHeaders(apiKey, true),
+    headers: anthropicHeaders(true),
     body: form,
     signal,
   })
@@ -123,10 +118,10 @@ export const uploadFile = async (
 }
 
 /** DELETE /anthropic/v1/files/{file_id} */
-export const deleteFile = async (apiKey: string, fileId: string): Promise<void> => {
+export const deleteFile = async (fileId: string): Promise<void> => {
   await request(`${ANTHROPIC_BASE_URL}/files/${encodeURIComponent(fileId)}`, {
     method: 'DELETE',
-    headers: anthropicHeaders(apiKey, true),
+    headers: anthropicHeaders(true),
   })
 }
 
@@ -138,18 +133,17 @@ const hasFile = (body: CreateMessageRequest) =>
   )
 
 /**
- * POST /anthropic/v1/messages（stream: true），逐个产出流式事件，收到 message_stop 时结束。
- * ping、保活注释与无法解析的内容不产出；中止请求时抛出 signal 的 AbortError。
+ * POST /anthropic/v1/messages(stream: true),逐个产出流式事件,收到 message_stop 时结束。
+ * ping、保活注释与无法解析的内容不产出;中止请求时抛出 signal 的 AbortError。
  */
 export async function* streamMessage(
-  apiKey: string,
   body: CreateMessageRequest,
   signal: AbortSignal
 ): AsyncGenerator<MessageStreamEvent> {
   const response = await request(`${ANTHROPIC_BASE_URL}/messages`, {
     method: 'POST',
     headers: {
-      ...anthropicHeaders(apiKey, hasFile(body)),
+      ...anthropicHeaders(hasFile(body)),
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
     },
@@ -184,6 +178,6 @@ export async function* streamMessage(
       return
     }
   }
-  // 服务端没有提供错误内容时保持为空，不推测断流原因。
+  // 服务端没有提供错误内容时保持为空,不推测断流原因。
   throw new ApiError('interrupted', '')
 }

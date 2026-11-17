@@ -33,6 +33,25 @@ declare const styles: {
   readonly "importConfirmText": string;
   readonly "deleteConfirm": string;
   readonly "deleteActions": string;
+  readonly "sectionTitle": string;
+  readonly "formStack": string;
+  readonly "formRow": string;
+  readonly "formField": string;
+  readonly "formLabel": string;
+  readonly "formInput": string;
+  readonly "formActions": string;
+  readonly "formSuccess": string;
+  readonly "accountValue": string;
+  readonly "userList": string;
+  readonly "userRow": string;
+  readonly "userMain": string;
+  readonly "userName": string;
+  readonly "userRole": string;
+  readonly "rowActions": string;
+  readonly "userReset": string;
+  readonly "formTextarea": string;
+  readonly "formHint": string;
+  readonly "checkboxList": string;
+  readonly "checkboxRow": string;
 };
 export = styles;
-

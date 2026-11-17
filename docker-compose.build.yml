@@ -1,0 +1,5 @@
+services:
+  chat-demo:
+    image: chat-demo:local
+    build:
+      context: .

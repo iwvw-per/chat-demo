@@ -1,0 +1,33 @@
+services:
+  chat-demo:
+    image: ghcr.io/iwvw-per/chat-demo:latest
+    ports:
+      - '3000:3000'
+    environment:
+      PORT: '3000'
+      DATA_DIR: /app/data
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      API_BASE_URL: ${API_BASE_URL:-https://api.deepseek.com}
+      API_KEY: ${API_KEY:-}
+      API_MODEL: ${API_MODEL:-deepseek-flash}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+    volumes:
+      - chat-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  chat-data:

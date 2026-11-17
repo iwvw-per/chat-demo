@@ -119,5 +119,13 @@
     "react/no-unknown-property": "error",
     "react/rules-of-hooks": "off",
     "react/exhaustive-deps": "error"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["server/**/*.ts"],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ]
 }

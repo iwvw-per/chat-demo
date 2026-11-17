@@ -1,0 +1,12 @@
+.git
+.github
+node_modules
+dist
+server/dist
+data
+*.log
+.env
+.env.*
+!.env.example
+README.md
+README.zh-CN.md

@@ -32,6 +32,18 @@
   font-size: 14px;
 }
 
+.announcement {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--dsw-alias-border-inverted);
+  background-color: var(--dsw-alias-button-ghost-active-fill);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
 .loadingView {
   position: absolute;
   inset: 0;

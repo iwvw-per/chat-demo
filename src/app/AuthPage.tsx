@@ -8,6 +8,7 @@ import {
   type AuthStatus,
 } from '../services/auth.js'
 import { BackendError } from '../services/api/backend.js'
+import logoUrl from '../assets/dslogo.svg'
 import styles from './AuthPage.module.css'
 
 const AUTH_ERROR_KEYS: Record<string, TranslationKey> = {
@@ -79,7 +80,10 @@ export const AuthPage = () => {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        <div className={styles.brand}>{status?.appName || t('authBrand')}</div>
+        <div className={styles.brandRow}>
+          <img className={styles.logo} src={logoUrl} alt="" draggable={false} />
+          <div className={styles.brand}>{status?.appName || t('authBrand')}</div>
+        </div>
         <div className={styles.tagline}>{t('authTagline')}</div>
         <div role="tablist" className={styles.tabs}>
           <button

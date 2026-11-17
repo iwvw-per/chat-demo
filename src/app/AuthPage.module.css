@@ -26,6 +26,19 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 }
 
+.brandRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  flex-shrink: 0;
+  width: auto;
+  height: 32px;
+  user-select: none;
+}
+
 .brand {
   font-size: 22px;
   font-weight: 600;

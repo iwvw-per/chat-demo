@@ -1,6 +1,7 @@
 import express, { Router } from 'express'
 import { getAppOptions, normalizeAppOptions } from '../appOptions.js'
 import { hashPassword, requireAdmin, requireAuth } from '../auth.js'
+import { config } from '../config.js'
 import {
   countAdmins,
   createUserAtomic,
@@ -88,7 +89,7 @@ adminRouter.post(
       fail(400, '请先填写 API Key', 'missing_api_key')
     }
     try {
-      const response = await fetch(`${baseUrl}/models`, {
+      const response = await fetch(`${baseUrl}${config.apiPaths.models}`, {
         headers: { Authorization: `Bearer ${apiKey}` },
         signal: AbortSignal.timeout(15_000),
       })

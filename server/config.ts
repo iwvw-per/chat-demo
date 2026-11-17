@@ -15,6 +15,11 @@ const int = (value: string | undefined, fallback: number) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
 
+const pathOf = (value: string | undefined, fallback: string) => {
+  const path = value?.trim() || fallback
+  return path.startsWith('/') ? path : `/${path}`
+}
+
 export const config = {
   port: int(process.env.PORT, 3000),
   dataDir: path.resolve(process.env.DATA_DIR ?? path.join(appRoot, 'data')),
@@ -28,6 +33,13 @@ export const config = {
   apiBaseUrl: process.env.API_BASE_URL?.trim() || 'https://api.deepseek.com',
   apiKey: process.env.API_KEY?.trim() ?? '',
   apiModel: process.env.API_MODEL?.trim() || 'deepseek-flash',
+  apiPaths: {
+    messages: pathOf(process.env.API_MESSAGES_PATH, '/anthropic/v1/messages'),
+    files: pathOf(process.env.API_FILES_PATH, '/anthropic/v1/files'),
+    models: pathOf(process.env.API_MODELS_PATH, '/models'),
+    asr: pathOf(process.env.API_ASR_PATH, '/v1/tools/asr'),
+    tts: pathOf(process.env.API_TTS_PATH, '/v1/tools/tts'),
+  },
 }
 
 export const SESSION_COOKIE = 'chat_demo_session'

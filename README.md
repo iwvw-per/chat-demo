@@ -47,6 +47,11 @@ Data is kept in the `chat-data` Docker volume (`/app/data/chat-demo.sqlite`). Co
 | `API_BASE_URL`       | `https://api.deepseek.com` | Seeded upstream API base URL                             |
 | `API_KEY`            | empty                      | Seeded upstream API key                                  |
 | `API_MODEL`          | `deepseek-flash`           | Seeded default model                                     |
+| `API_MESSAGES_PATH`  | `/anthropic/v1/messages`   | Upstream Messages path (custom gateways)                 |
+| `API_FILES_PATH`     | `/anthropic/v1/files`      | Upstream Files path                                      |
+| `API_MODELS_PATH`    | `/models`                  | Upstream model list path                                 |
+| `API_ASR_PATH`       | `/v1/tools/asr`            | Upstream speech-to-text path                             |
+| `API_TTS_PATH`       | `/v1/tools/tts`            | Upstream text-to-speech path                             |
 | `COOKIE_SECURE`      | `false`                    | Set to `true` when served over HTTPS                     |
 | `TRUST_PROXY`        | `false`                    | Trust the first reverse proxy hop                        |
 | `SESSION_DAYS`       | `30`                       | Login session lifetime in days                           |

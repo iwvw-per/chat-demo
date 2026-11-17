@@ -3,6 +3,7 @@ import multer from 'multer'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { requireAuth } from '../auth.js'
+import { config as appConfig } from '../config.js'
 import { getProviderConfig, type ProviderConfig } from '../db.js'
 import { asyncHandler, fail } from '../http.js'
 
@@ -104,7 +105,7 @@ proxyRouter.get(
     const controller = abortOnClose(res)
     await forward(
       res,
-      '/models',
+      appConfig.apiPaths.models,
       { method: 'GET', headers: bearerHeaders(provider()), signal: controller.signal },
       controller.signal
     )
@@ -121,7 +122,7 @@ proxyRouter.post(
     res.setHeader('X-Accel-Buffering', 'no')
     await forward(
       res,
-      '/anthropic/v1/messages',
+      appConfig.apiPaths.messages,
       {
         method: 'POST',
         headers: {
@@ -163,7 +164,7 @@ proxyRouter.post(
     )
     await forward(
       res,
-      '/anthropic/v1/files',
+      appConfig.apiPaths.files,
       {
         method: 'POST',
         headers: {
@@ -186,7 +187,7 @@ proxyRouter.delete(
     const controller = abortOnClose(res)
     await forward(
       res,
-      `/anthropic/v1/files/${encodeURIComponent(req.params.fileId)}`,
+      `${appConfig.apiPaths.files}/${encodeURIComponent(req.params.fileId)}`,
       {
         method: 'DELETE',
         headers: {
@@ -221,7 +222,7 @@ proxyRouter.post(
     )
     await forward(
       res,
-      '/v1/tools/asr',
+      appConfig.apiPaths.asr,
       {
         method: 'POST',
         headers: bearerHeaders(config),
@@ -241,7 +242,7 @@ proxyRouter.post(
     const controller = abortOnClose(res)
     await forward(
       res,
-      '/v1/tools/tts',
+      appConfig.apiPaths.tts,
       {
         method: 'POST',
         headers: {

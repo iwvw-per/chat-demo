@@ -64,8 +64,8 @@ Install Node.js 24+ and pnpm, then:
 
 ```sh
 pnpm install
-pnpm dev:server   # API on http://localhost:3000
-pnpm dev          # UI on http://localhost:8090, /api proxied to 3000
+pnpm dev:server   # API on http://localhost:3001
+pnpm dev          # UI on http://localhost:8090, /api proxied to 3001
 ```
 
 Open http://localhost:8090 and register the first account, or set `ADMIN_USERNAME` / `ADMIN_PASSWORD` before starting the server.

@@ -64,8 +64,8 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
 ```sh
 pnpm install
-pnpm dev:server   # API 监听 http://localhost:3000
-pnpm dev          # 界面监听 http://localhost:8090,/api 代理到 3000
+pnpm dev:server   # API 监听 http://localhost:3001
+pnpm dev          # 界面监听 http://localhost:8090,/api 代理到 3001
 ```
 
 打开 http://localhost:8090 注册首个账号;也可以在启动服务前设置 `ADMIN_USERNAME` / `ADMIN_PASSWORD`。

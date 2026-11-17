@@ -7,7 +7,9 @@ import {
   IconFollowsystemOutline16,
   IconLightOutline16,
   IconSettingsOutline16,
+  IconSlidersOutline16,
   IconUploadOutline14,
+  IconUserOutline16,
 } from '../base/icons.js'
 import {
   BackupError,
@@ -64,9 +66,15 @@ const SettingsContent = () => {
       icon: <IconSettingsOutline16 />,
     },
     { value: 'data', label: 'settingDialogAsideDataOptionLabel', icon: <IconDataOutline16 /> },
-    { value: 'account', label: 'settingDialogAsideAccountOptionLabel' },
+    { value: 'account', label: 'settingDialogAsideAccountOptionLabel', icon: <IconUserOutline16 /> },
     ...(user?.role === 'admin'
-      ? [{ value: 'admin' as const, label: 'settingDialogAsideAdminOptionLabel' as const }]
+      ? [
+          {
+            value: 'admin' as const,
+            label: 'settingDialogAsideAdminOptionLabel' as const,
+            icon: <IconSlidersOutline16 />,
+          },
+        ]
       : []),
   ]
   return (

@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "dev": "rspack serve -c rspack.config.ts",
-    "dev:server": "tsx watch server/index.ts",
+    "dev:server": "cross-env PORT=3001 tsx watch server/index.ts",
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && cross-env NODE_ENV=production rspack build -c rspack.config.ts",
     "build:server": "tsc -p tsconfig.server.json",
     "build:all": "pnpm build && pnpm build:server",

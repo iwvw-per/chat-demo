@@ -5,6 +5,11 @@ declare module '*.module.css' {
 
 declare module '*.css' {}
 
+declare module '*.svg' {
+  const url: string
+  export default url
+}
+
 
 /** Prism 语言包通过副作用注册到全局 Prism */
 declare module 'prismjs/components/*' {}

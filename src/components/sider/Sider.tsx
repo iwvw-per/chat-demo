@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import { useProvider } from '../../services/provider.js'
+import logoUrl from '../../assets/deepseek.svg'
 import { IconPanelLeftOutline16, IconSettingsOutline16, NewChatIcon } from '../base/icons.js'
 import { setSiderCollapsed } from '../../services/settings.js'
 import { groupSessions } from '../../services/chat/sessionGroups.js'
@@ -54,7 +55,12 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   return (
     <div className={clsx(styles.sider, mobile && styles.mobile)}>
       <div className={styles.top}>
-        <div className={styles.appName}>{appName || t('appName')}</div>
+        <img
+          className={styles.logo}
+          src={logoUrl}
+          alt={appName || t('appName')}
+          draggable={false}
+        />
         <IconButton
           size="m"
           icon={<IconPanelLeftOutline16 />}

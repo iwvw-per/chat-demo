@@ -67,6 +67,7 @@ export const createConfig = ({
         },
         type: 'javascript/auto',
       },
+      { test: /\.svg$/, type: 'asset/resource' },
       { test: /\.(woff2?|ttf)$/, type: 'asset/resource' },
     ],
   },

@@ -14,7 +14,7 @@ export const en = {
     'Chats or attachments have not been saved to the server. Retry before closing this page.',
   sessionDeleteFailed: 'Unable to delete this chat. Please try again.',
   settings: 'Settings',
-  appName: 'API usage demo',
+  appName: 'DeepSeek',
   deleteSessionModalContentTitle: 'Delete chat?',
   deleteSessionWithFilesDescription:
     'This chat and its uploaded files will be permanently deleted and cannot be recovered. Delete this chat?',
@@ -199,7 +199,7 @@ export const en = {
   authErrorRateLimited: 'Too many attempts. Please try again later.',
   authErrorInvalidUsername: 'Username must be 3-32 letters, numbers, underscores, dots or dashes',
   authErrorInvalidPassword: 'Password must be 8-128 characters',
-  authBrand: 'DeepSeek Chat',
+  authBrand: 'DeepSeek',
   authTagline: 'API configured on the server, conversations synced across devices',
   settingDialogAsideAccountOptionLabel: 'Account',
   accountSignedInAs: 'Signed in as',

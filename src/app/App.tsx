@@ -1,3 +1,4 @@
+import clsx from 'clsx'
 import { useEffect } from 'react'
 import { useTranslate } from '../i18n/index.js'
 import { useSettings } from '../services/settings.js'
@@ -80,7 +81,16 @@ export const App = () => {
   return (
     <>
       <div ref={frameRef} className={styles.frame}>
-        {isMobile ? <MobileSider /> : siderCollapsed ? null : <Sider />}
+        {isMobile ? (
+          <MobileSider />
+        ) : (
+          <div
+            className={clsx(styles.siderSlot, siderCollapsed && styles.siderSlotCollapsed)}
+            aria-hidden={siderCollapsed}
+          >
+            <Sider />
+          </div>
+        )}
         <main className={styles.main}>
           {announcement ? (
             <div className={styles.announcement} role="status">
@@ -101,7 +111,7 @@ export const App = () => {
             </div>
           ) : null}
           <div className={styles.content}>
-            {siderCollapsed ? <CollapsedSider /> : null}
+            <CollapsedSider hidden={!siderCollapsed} />
             {!ready || (activeId !== null && !session) ? (
               <div className={styles.loadingView}>
                 {isMobile ? <MobileHeader /> : null}

@@ -14,6 +14,40 @@
   min-width: 0;
 }
 
+.siderSlot {
+  flex-shrink: 0;
+  width: 261px;
+  height: 100%;
+  overflow: hidden;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    width 0.28s var(--ds-ease-in-out),
+    opacity 0.18s var(--ds-ease-in-out),
+    visibility 0s;
+}
+
+.siderSlot > div {
+  height: 100%;
+}
+
+.siderSlotCollapsed {
+  width: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    width 0.28s var(--ds-ease-in-out),
+    opacity 0.18s var(--ds-ease-in-out),
+    visibility 0s 0.28s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .siderSlot,
+  .siderSlotCollapsed {
+    transition: none;
+  }
+}
+
 .content {
   position: relative;
   flex: 1;

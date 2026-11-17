@@ -2,6 +2,7 @@ declare const styles: {
   readonly "sider": string;
   readonly "top": string;
   readonly "appName": string;
+  readonly "logo": string;
   readonly "newChat": string;
   readonly "newChatIcon": string;
   readonly "listWrap": string;
@@ -13,6 +14,7 @@ declare const styles: {
   readonly "settingsIcon": string;
   readonly "settingsLabel": string;
   readonly "collapsed": string;
+  readonly "collapsedHidden": string;
   readonly "collapsedGroup": string;
   readonly "drawer": string;
   readonly "drawerMask": string;

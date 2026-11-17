@@ -49,6 +49,7 @@ Data is kept in the `chat-data` Docker volume (`/app/data/chat-demo.sqlite`). Co
 | `API_MODEL`          | `deepseek-flash`           | Seeded default model                                     |
 | `API_IMAGE_MODE`     | `files`                    | `files` uses the Files API; `data-url` sends images inline to a vision model |
 | `API_VISION_MODEL`   | empty                      | Model used for image requests in `data-url` mode         |
+| `API_THINKING_MODE`  | `anthropic`                | `openai` streams text thinking via chat completions (disables search/read tools for thinking requests) |
 | `API_MESSAGES_PATH`  | `/anthropic/v1/messages`   | Upstream Messages path (custom gateways)                 |
 | `API_FILES_PATH`     | `/anthropic/v1/files`      | Upstream Files path                                      |
 | `API_MODELS_PATH`    | `/models`                  | Upstream model list path                                 |

@@ -6,7 +6,7 @@ import { requireAuth } from '../auth.js'
 import { config as appConfig } from '../config.js'
 import { getProviderConfig, type ProviderConfig } from '../db.js'
 import { asyncHandler, fail } from '../http.js'
-import { handleVisionMessage, hasInlineImages } from '../vision.js'
+import { handleChatMessage, hasInlineImages } from '../vision.js'
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -120,15 +120,24 @@ proxyRouter.post(
     const config = provider()
     const controller = abortOnClose(res)
     const beta = req.headers['anthropic-beta']
-    if (appConfig.imageMode === 'data-url') {
+    if (appConfig.imageMode === 'data-url' || appConfig.thinkingMode === 'openai') {
       let body: unknown
       try {
         body = JSON.parse((req.body as Buffer).toString('utf8'))
       } catch {
         body = null
       }
-      if (hasInlineImages(body)) {
-        await handleVisionMessage(res, body as Record<string, unknown>, config)
+      const thinking =
+        typeof body === 'object' &&
+        body !== null &&
+        'thinking' in body &&
+        typeof (body as { thinking?: { type?: unknown } }).thinking?.type === 'string' &&
+        (body as { thinking: { type: string } }).thinking.type === 'enabled'
+      if (
+        hasInlineImages(body) ||
+        (appConfig.thinkingMode === 'openai' && thinking && body !== null)
+      ) {
+        await handleChatMessage(res, body as Record<string, unknown>, config)
         return
       }
     }

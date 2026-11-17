@@ -120,17 +120,18 @@ const sendEvent = (res: Response, event: string, data: unknown) => {
   }
 }
 
-export const handleVisionMessage = async (
+export const handleChatMessage = async (
   res: Response,
   body: Value,
   provider: ProviderConfig
 ): Promise<void> => {
   const { messages, lastUserText, images } = toOpenAIMessages(body)
-  if (images === 0 || messages.length === 0) {
-    throw new HttpError(400, '没有可读取的图片', 'invalid_vision_request')
+  if (messages.length === 0) {
+    throw new HttpError(400, '没有可发送的消息', 'invalid_chat_request')
   }
   const model =
-    config.visionModel || (typeof body.model === 'string' ? body.model : provider.model)
+    (images > 0 ? config.visionModel : '') ||
+    (typeof body.model === 'string' ? body.model : provider.model)
   const controller = new AbortController()
   res.on('close', () => {
     if (!res.writableEnded) {
@@ -138,6 +139,11 @@ export const handleVisionMessage = async (
     }
   })
 
+  const thinking = isRecord(body.thinking) && body.thinking.type === 'enabled'
+  const payload: Record<string, unknown> = { model, messages, stream: true, max_tokens: 4096 }
+  if (images === 0 && thinking) {
+    payload.reasoning_effort = 'high'
+  }
   let upstream: globalThis.Response
   try {
     upstream = await fetch(
@@ -148,7 +154,7 @@ export const handleVisionMessage = async (
           Authorization: `Bearer ${provider.apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ model, messages, stream: true, max_tokens: 4096 }),
+        body: JSON.stringify(payload),
         signal: controller.signal,
       }
     )
@@ -158,7 +164,7 @@ export const handleVisionMessage = async (
     }
     throw new HttpError(
       502,
-      `无法连接多模态接口: ${error instanceof Error ? error.message : String(error)}`
+      `无法连接模型接口: ${error instanceof Error ? error.message : String(error)}`
     )
   }
   if (!upstream.ok) {
@@ -166,7 +172,7 @@ export const handleVisionMessage = async (
     return
   }
   if (!upstream.body) {
-    throw new HttpError(502, '多模态接口没有返回流')
+    throw new HttpError(502, '模型接口没有返回流')
   }
 
   const reader = upstream.body.getReader()
@@ -277,7 +283,7 @@ export const handleVisionMessage = async (
     }
     const delta = isRecord(choice.delta) ? choice.delta : {}
     const reasoning = textOf(delta.reasoning_content) || textOf(delta.reasoning)
-    if (reasoning) {
+    if (reasoning && thinking) {
       if (textOpen) {
         closeText()
       }
@@ -324,7 +330,7 @@ export const handleVisionMessage = async (
     if (isRecord(payload.error)) {
       throw new HttpError(
         502,
-        String(payload.error.message ?? '多模态接口返回错误'),
+        String(payload.error.message ?? '模型接口返回错误'),
         'vision_upstream_error'
       )
     }
@@ -357,7 +363,7 @@ export const handleVisionMessage = async (
     if (!started) {
       throw new HttpError(
         502,
-        error instanceof Error ? error.message : '多模态接口流读取失败'
+        error instanceof Error ? error.message : '模型接口流读取失败'
       )
     }
     sendEvent(res, 'error', {
@@ -370,11 +376,11 @@ export const handleVisionMessage = async (
 
   if (!started || (!answer && !thinkingOpen)) {
     if (!started) {
-      throw new HttpError(502, '多模态模型没有返回内容')
+      throw new HttpError(502, '模型没有返回内容')
     }
     sendEvent(res, 'error', {
       type: 'error',
-      error: { type: 'api_error', message: '多模态模型没有返回内容' },
+      error: { type: 'api_error', message: '模型没有返回内容' },
     })
     res.end()
     return

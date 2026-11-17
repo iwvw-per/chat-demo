@@ -49,6 +49,7 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 | `API_MODEL`          | `deepseek-flash`           | 初始默认模型                                     |
 | `API_IMAGE_MODE`     | `files`                    | `files` 走 Files API;`data-url` 由多模态模型直接读图 |
 | `API_VISION_MODEL`   | 空                         | `data-url` 模式下处理图片请求的视觉模型          |
+| `API_THINKING_MODE`  | `anthropic`                | `openai` 时深度思考文本走推理流(该模式不带搜索/读链接工具) |
 | `API_MESSAGES_PATH`  | `/anthropic/v1/messages`   | 上游 Messages 路径(自定义网关)                  |
 | `API_FILES_PATH`     | `/anthropic/v1/files`      | 上游 Files 路径                                  |
 | `API_MODELS_PATH`    | `/models`                  | 上游模型列表路径                                 |

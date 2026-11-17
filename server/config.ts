@@ -36,6 +36,8 @@ export const config = {
   imageMode:
     process.env.API_IMAGE_MODE === 'data-url' ? ('data-url' as const) : ('files' as const),
   visionModel: process.env.API_VISION_MODEL?.trim() || '',
+  thinkingMode:
+    process.env.API_THINKING_MODE === 'openai' ? ('openai' as const) : ('anthropic' as const),
   apiPaths: {
     messages: pathOf(process.env.API_MESSAGES_PATH, '/anthropic/v1/messages'),
     files: pathOf(process.env.API_FILES_PATH, '/anthropic/v1/files'),

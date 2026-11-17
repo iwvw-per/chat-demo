@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import clsx from 'clsx'
 import { useTranslate, type TranslationKey } from '../i18n/index.js'
 import {
   getAuthStatus,
@@ -84,8 +85,17 @@ export const AuthPage = () => {
           <img className={styles.logo} src={logoUrl} alt="" draggable={false} />
           <div className={styles.brand}>{status?.appName || t('authBrand')}</div>
         </div>
-        
+
         <div role="tablist" className={styles.tabs}>
+          <span
+            aria-hidden="true"
+            className={clsx(styles.tabIndicator, !canRegister && styles.tabIndicatorSingle)}
+            style={
+              canRegister && mode === 'register'
+                ? { transform: 'translateX(calc(100% + 4px))' }
+                : undefined
+            }
+          />
           <button
             type="button"
             role="tab"
@@ -114,6 +124,7 @@ export const AuthPage = () => {
           ) : null}
         </div>
         <form
+          key={mode}
           className={styles.form}
           onSubmit={(event) => {
             event.preventDefault()

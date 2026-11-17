@@ -105,7 +105,7 @@ const SettingsContent = () => {
             </button>
           ))}
         </div>
-        <div role="tabpanel" className={styles.content}>
+        <div role="tabpanel" key={section} className={styles.content}>
           {section === 'general' ? (
             <>
               <ThemeSetting />

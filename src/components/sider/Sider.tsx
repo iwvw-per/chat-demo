@@ -151,13 +151,32 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
 /** 移动端抽屉：浮在页面上方，点空白区域关闭。 */
 export const MobileSider = () => {
   const open = useMobileSider((state) => state.open)
-  if (!open) {
+  // 收起时先播放退场过渡,再卸载抽屉
+  const [mounted, setMounted] = useState(false)
+  const [active, setActive] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true)
+      const frame = requestAnimationFrame(() => setActive(true))
+      return () => cancelAnimationFrame(frame)
+    }
+    setActive(false)
+    const timer = setTimeout(() => setMounted(false), 240)
+    return () => clearTimeout(timer)
+  }, [open])
+
+  if (!mounted) {
     return null
   }
   return (
     <>
-      <div className={styles.drawerMask} onClick={closeMobileSider} />
-      <div className={styles.drawer}>
+      <div
+        className={clsx(styles.drawerMask, !active && styles.drawerMaskHidden)}
+        aria-hidden={!active}
+        onClick={closeMobileSider}
+      />
+      <div className={clsx(styles.drawer, !active && styles.drawerHidden)} aria-hidden={!active}>
         <Sider mobile />
       </div>
     </>

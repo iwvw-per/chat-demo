@@ -136,8 +136,13 @@
   cursor: pointer;
   user-select: none;
   outline: none;
+  transition: background-color 0.18s var(--ds-ease-in-out);
 
   &:hover {
+    background-color: var(--dsw-specific-sidebar-nav-item-hover);
+  }
+
+  &:active {
     background-color: var(--dsw-specific-sidebar-nav-item-hover);
   }
 
@@ -197,7 +202,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .collapsed,
-  .collapsedHidden {
+  .collapsedHidden,
+  .drawer,
+  .drawerMask {
     transition: none;
   }
 }
@@ -221,12 +228,31 @@
   bottom: 0;
   left: 0;
   z-index: 800;
+  transform: translateX(0);
+  transition: transform 0.24s var(--ds-ease-in-out);
+  will-change: transform;
+}
+
+.drawerHidden {
+  transform: translateX(-100%);
 }
 
 .drawerMask {
   position: absolute;
   inset: 0;
   z-index: 799;
+  background-color: rgba(0, 0, 0, 0.18);
+  opacity: 1;
+  transition: opacity 0.24s var(--ds-ease-in-out);
+
+  [data-ds-dark-theme] & {
+    background-color: rgba(0, 0, 0, 0.45);
+  }
+}
+
+.drawerMaskHidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .mobile {

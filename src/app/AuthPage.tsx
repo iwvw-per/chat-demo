@@ -84,7 +84,7 @@ export const AuthPage = () => {
           <img className={styles.logo} src={logoUrl} alt="" draggable={false} />
           <div className={styles.brand}>{status?.appName || t('authBrand')}</div>
         </div>
-        <div className={styles.tagline}>{t('authTagline')}</div>
+        
         <div role="tablist" className={styles.tabs}>
           <button
             type="button"

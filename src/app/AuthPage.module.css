@@ -45,12 +45,6 @@
   color: var(--dsw-alias-label-primary);
 }
 
-.tagline {
-  margin-top: 6px;
-  font-size: 13px;
-  color: var(--dsw-alias-label-tertiary);
-}
-
 .tabs {
   display: flex;
   gap: 8px;

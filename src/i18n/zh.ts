@@ -191,7 +191,7 @@ export const zh = {
   authErrorInvalidUsername: '用户名需为 3-32 位字母、数字、下划线、点或短横线',
   authErrorInvalidPassword: '密码长度需为 8-128 位',
   authBrand: 'DeepSeek',
-  authTagline: '后端统一配置 API,对话多端同步',
+  
   settingDialogAsideAccountOptionLabel: '账号',
   accountSignedInAs: '当前账号',
   accountRoleAdmin: '管理员',

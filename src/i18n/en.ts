@@ -200,7 +200,7 @@ export const en = {
   authErrorInvalidUsername: 'Username must be 3-32 letters, numbers, underscores, dots or dashes',
   authErrorInvalidPassword: 'Password must be 8-128 characters',
   authBrand: 'DeepSeek',
-  authTagline: 'API configured on the server, conversations synced across devices',
+  
   settingDialogAsideAccountOptionLabel: 'Account',
   accountSignedInAs: 'Signed in as',
   accountRoleAdmin: 'Administrator',

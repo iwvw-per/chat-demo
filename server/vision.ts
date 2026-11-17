@@ -15,15 +15,15 @@ type OpenAIMessage = {
   content: string | OpenAIContentPart[]
 }
 
+type InlineImageBlock = Value & {
+  source: { type: 'base64'; media_type: string; data: string }
+}
+
 const isRecord = (value: unknown): value is Value =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const blocksOf = (value: unknown): Value[] =>
   Array.isArray(value) ? value.filter(isRecord) : []
-
-type InlineImageBlock = Value & {
-  source: { type: 'base64'; media_type: string; data: string }
-}
 
 const isInlineImage = (block: Value): block is InlineImageBlock =>
   block.type === 'image' &&
@@ -89,29 +89,20 @@ const toOpenAIMessages = (
   return { messages, lastUserText, images }
 }
 
-const answerText = (payload: Value): string => {
-  const choice = blocksOf(payload.choices)[0]
-  if (!choice) {
-    return ''
+const textOf = (value: unknown): string => {
+  if (typeof value === 'string') {
+    return value
   }
-  const message = isRecord(choice.message) ? choice.message : {}
-  if (typeof message.content === 'string') {
-    return message.content
-  }
-  if (Array.isArray(message.content)) {
-    return message.content
+  if (Array.isArray(value)) {
+    return value
       .flatMap((part) =>
-        isRecord(part) && part.type === 'text' && typeof part.text === 'string' ? [part.text] : []
+        isRecord(part) && part.type === 'text' && typeof part.text === 'string'
+          ? [part.text]
+          : []
       )
       .join('')
   }
-  return typeof choice.text === 'string' ? choice.text : ''
-}
-
-const sendEvent = (res: Response, event: string, data: unknown) => {
-  if (!res.writableEnded) {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-  }
+  return ''
 }
 
 const pipeError = async (res: Response, response: globalThis.Response) => {
@@ -121,6 +112,12 @@ const pipeError = async (res: Response, response: globalThis.Response) => {
     res.setHeader('Content-Type', contentType)
   }
   res.status(response.status).send(text || response.statusText)
+}
+
+const sendEvent = (res: Response, event: string, data: unknown) => {
+  if (!res.writableEnded) {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+  }
 }
 
 export const handleVisionMessage = async (
@@ -151,7 +148,7 @@ export const handleVisionMessage = async (
           Authorization: `Bearer ${provider.apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ model, messages, stream: false, max_tokens: 4096 }),
+        body: JSON.stringify({ model, messages, stream: true, max_tokens: 4096 }),
         signal: controller.signal,
       }
     )
@@ -168,66 +165,234 @@ export const handleVisionMessage = async (
     await pipeError(res, upstream)
     return
   }
-  let payload: Value
-  try {
-    const parsed = (await upstream.json()) as unknown
-    if (!isRecord(parsed)) {
-      throw new Error('invalid payload')
-    }
-    payload = parsed
-  } catch {
-    throw new HttpError(502, '多模态接口返回格式错误')
-  }
-  const answer = answerText(payload)
-  if (!answer) {
-    throw new HttpError(502, '多模态模型未返回文本内容')
-  }
-  const usage = isRecord(payload.usage) ? payload.usage : {}
-  const inputTokens = Number(usage.prompt_tokens) || 0
-  const outputTokens = Number(usage.completion_tokens) || 0
-  const titleEnabled = isRecord(body.title) && body.title.enabled === true
-  const title = titleEnabled ? (lastUserText.trim() || '图片对话').slice(0, 40) : undefined
-  const usagePayload = {
-    input_tokens: inputTokens,
-    cache_creation_input_tokens: 0,
-    cache_read_input_tokens: 0,
-    output_tokens: 0,
+  if (!upstream.body) {
+    throw new HttpError(502, '多模态接口没有返回流')
   }
 
-  res.status(200)
-  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
-  res.setHeader('Cache-Control', 'no-cache, no-transform')
-  res.setHeader('Connection', 'keep-alive')
-  res.setHeader('X-Accel-Buffering', 'no')
-  res.flushHeaders()
-  sendEvent(res, 'message_start', {
-    type: 'message_start',
-    message: {
-      id: `msg_${randomUUID()}`,
-      type: 'message',
-      role: 'assistant',
-      model,
-      content: [],
-      stop_reason: null,
-      stop_sequence: null,
-      usage: usagePayload,
-    },
-  })
-  sendEvent(res, 'content_block_start', {
-    type: 'content_block_start',
-    index: 0,
-    content_block: { type: 'text', text: '' },
-  })
-  sendEvent(res, 'content_block_delta', {
-    type: 'content_block_delta',
-    index: 0,
-    delta: { type: 'text_delta', text: answer },
-  })
-  sendEvent(res, 'content_block_stop', { type: 'content_block_stop', index: 0 })
+  const reader = upstream.body.getReader()
+  const decoder = new TextDecoder()
+  const answerId = `msg_${randomUUID()}`
+  let started = false
+  let thinkingOpen = false
+  let textOpen = false
+  let thinkingIndex = -1
+  let textIndex = -1
+  let nextIndex = 0
+  let answer = ''
+  let inputTokens = 0
+  let outputTokens = 0
+  let stopReason: 'end_turn' | 'max_tokens' = 'end_turn'
+
+  const start = () => {
+    if (started) {
+      return
+    }
+    started = true
+    res.status(200)
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+    res.setHeader('Cache-Control', 'no-cache, no-transform')
+    res.setHeader('Connection', 'keep-alive')
+    res.setHeader('X-Accel-Buffering', 'no')
+    res.flushHeaders()
+    sendEvent(res, 'message_start', {
+      type: 'message_start',
+      message: {
+        id: answerId,
+        type: 'message',
+        role: 'assistant',
+        model,
+        content: [],
+        stop_reason: null,
+        stop_sequence: null,
+        usage: {
+          input_tokens: 0,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+          output_tokens: 0,
+        },
+      },
+    })
+  }
+
+  const openThinking = () => {
+    if (thinkingOpen) {
+      return
+    }
+    start()
+    thinkingOpen = true
+    thinkingIndex = nextIndex
+    nextIndex += 1
+    sendEvent(res, 'content_block_start', {
+      type: 'content_block_start',
+      index: thinkingIndex,
+      content_block: { type: 'thinking', thinking: '' },
+    })
+  }
+
+  const closeThinking = () => {
+    if (!thinkingOpen) {
+      return
+    }
+    thinkingOpen = false
+    sendEvent(res, 'content_block_stop', {
+      type: 'content_block_stop',
+      index: thinkingIndex,
+    })
+  }
+
+  const openText = () => {
+    if (textOpen) {
+      return
+    }
+    start()
+    textOpen = true
+    textIndex = nextIndex
+    nextIndex += 1
+    sendEvent(res, 'content_block_start', {
+      type: 'content_block_start',
+      index: textIndex,
+      content_block: { type: 'text', text: '' },
+    })
+  }
+
+  const closeText = () => {
+    if (!textOpen) {
+      return
+    }
+    textOpen = false
+    sendEvent(res, 'content_block_stop', {
+      type: 'content_block_stop',
+      index: textIndex,
+    })
+  }
+
+  const processPayload = (payload: Value) => {
+    if (isRecord(payload.usage)) {
+      inputTokens = Number(payload.usage.prompt_tokens) || inputTokens
+      outputTokens = Number(payload.usage.completion_tokens) || outputTokens
+    }
+    const choice = blocksOf(payload.choices)[0]
+    if (!choice) {
+      return
+    }
+    const delta = isRecord(choice.delta) ? choice.delta : {}
+    const reasoning = textOf(delta.reasoning_content) || textOf(delta.reasoning)
+    if (reasoning) {
+      if (textOpen) {
+        closeText()
+      }
+      openThinking()
+      sendEvent(res, 'content_block_delta', {
+        type: 'content_block_delta',
+        index: thinkingIndex,
+        delta: { type: 'thinking_delta', thinking: reasoning },
+      })
+    }
+    const content = textOf(delta.content)
+    if (content) {
+      closeThinking()
+      openText()
+      answer += content
+      sendEvent(res, 'content_block_delta', {
+        type: 'content_block_delta',
+        index: textIndex,
+        delta: { type: 'text_delta', text: content },
+      })
+    }
+    if (choice.finish_reason === 'length') {
+      stopReason = 'max_tokens'
+    }
+  }
+
+  const handleLine = (line: string) => {
+    if (!line.startsWith('data:')) {
+      return
+    }
+    const data = line.slice(5).trim()
+    if (!data || data === '[DONE]') {
+      return
+    }
+    let payload: unknown
+    try {
+      payload = JSON.parse(data)
+    } catch {
+      return
+    }
+    if (!isRecord(payload)) {
+      return
+    }
+    if (isRecord(payload.error)) {
+      throw new HttpError(
+        502,
+        String(payload.error.message ?? '多模态接口返回错误'),
+        'vision_upstream_error'
+      )
+    }
+    processPayload(payload)
+  }
+
+  let buffer = ''
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) {
+        break
+      }
+      buffer += decoder.decode(value, { stream: true })
+      let index = buffer.indexOf('\n')
+      while (index >= 0) {
+        const line = buffer.slice(0, index).replace(/\r$/, '')
+        buffer = buffer.slice(index + 1)
+        handleLine(line)
+        index = buffer.indexOf('\n')
+      }
+    }
+    if (buffer.trim()) {
+      handleLine(buffer.trim())
+    }
+  } catch (error) {
+    if (controller.signal.aborted) {
+      return
+    }
+    if (!started) {
+      throw new HttpError(
+        502,
+        error instanceof Error ? error.message : '多模态接口流读取失败'
+      )
+    }
+    sendEvent(res, 'error', {
+      type: 'error',
+      error: { type: 'api_error', message: error instanceof Error ? error.message : '读取失败' },
+    })
+    res.end()
+    return
+  }
+
+  if (!started || (!answer && !thinkingOpen)) {
+    if (!started) {
+      throw new HttpError(502, '多模态模型没有返回内容')
+    }
+    sendEvent(res, 'error', {
+      type: 'error',
+      error: { type: 'api_error', message: '多模态模型没有返回内容' },
+    })
+    res.end()
+    return
+  }
+
+  closeThinking()
+  closeText()
+  const titleEnabled = isRecord(body.title) && body.title.enabled === true
+  const title = titleEnabled ? (lastUserText.trim() || '图片对话').slice(0, 40) : undefined
   sendEvent(res, 'message_delta', {
     type: 'message_delta',
-    delta: { stop_reason: 'end_turn', stop_sequence: null, ...(title ? { title } : {}) },
-    usage: { ...usagePayload, output_tokens: outputTokens },
+    delta: { stop_reason: stopReason, stop_sequence: null, ...(title ? { title } : {}) },
+    usage: {
+      input_tokens: inputTokens,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+      output_tokens: outputTokens,
+    },
   })
   sendEvent(res, 'message_stop', { type: 'message_stop' })
   res.end()

@@ -10,19 +10,46 @@ import { FileCard } from '../files/FileCard.js'
 import styles from './MessageFile.module.css'
 
 /** 原件从服务端读出并生成本地地址；undefined 表示加载中，null 表示原件缺失。 */
+const RETRY_DELAYS = [300, 700, 1200, 2000, 3000]
+
 const useFileUrl = (id: string) => {
   const [fileUrl, setFileUrl] = useState<{ id: string; url: string | null } | null>(null)
   useEffect(() => {
     let objectUrl: string | null = null
     let cancelled = false
-    loadFile(id).then((blob) => {
-      if (!cancelled) {
-        objectUrl = blob ? URL.createObjectURL(blob) : null
-        setFileUrl({ id, url: objectUrl })
-      }
-    })
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const attempt = (index: number) => {
+      loadFile(id)
+        .then((blob) => {
+          if (cancelled) {
+            return
+          }
+          if (blob) {
+            objectUrl = URL.createObjectURL(blob)
+            setFileUrl({ id, url: objectUrl })
+            return
+          }
+          if (index < RETRY_DELAYS.length) {
+            timer = setTimeout(() => attempt(index + 1), RETRY_DELAYS[index])
+          } else {
+            setFileUrl({ id, url: null })
+          }
+        })
+        .catch(() => {
+          if (cancelled) {
+            return
+          }
+          if (index < RETRY_DELAYS.length) {
+            timer = setTimeout(() => attempt(index + 1), RETRY_DELAYS[index])
+          } else {
+            setFileUrl({ id, url: null })
+          }
+        })
+    }
+    attempt(0)
     return () => {
       cancelled = true
+      clearTimeout(timer)
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl)
       }

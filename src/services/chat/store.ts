@@ -348,6 +348,7 @@ export const resetChat = () => {
   pendingFiles.clear()
   deletingSessions.clear()
   streamFlushes.clear()
+  db.clearFileCache()
   clearAllDrafts()
   set({
     ready: false,

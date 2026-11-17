@@ -18,6 +18,28 @@ const uploadFile = async (file: StoredFile, path: string): Promise<void> => {
   }
 }
 
+const recentFiles = new Map<string, Blob>()
+
+const rememberFile = (file: StoredFile) => {
+  recentFiles.delete(file.id)
+  recentFiles.set(file.id, file.blob)
+  while (recentFiles.size > 12) {
+    const oldest = recentFiles.keys().next().value
+    if (oldest === undefined) {
+      break
+    }
+    recentFiles.delete(oldest)
+  }
+}
+
+const rememberFiles = (files: StoredFile[]) => {
+  for (const file of files) {
+    rememberFile(file)
+  }
+}
+
+export const clearFileCache = () => recentFiles.clear()
+
 const uploadFiles = async (files: StoredFile[], path: string): Promise<void> => {
   await Promise.all(files.map((file) => uploadFile(file, path)))
 }
@@ -39,6 +61,7 @@ export const loadSession = async (id: string): Promise<Session | undefined> => {
 }
 
 export const saveSession = async (session: Session, files: StoredFile[] = []): Promise<void> => {
+  rememberFiles(files)
   if (files.length > 0) {
     await uploadFiles(files, '/api/chat/files')
   }
@@ -66,10 +89,16 @@ export const deleteSession = async (sessionId: string): Promise<void> => {
   }
 }
 
-export const saveFiles = (files: StoredFile[]): Promise<void> =>
-  uploadFiles(files, '/api/chat/files')
+export const saveFiles = (files: StoredFile[]): Promise<void> => {
+  rememberFiles(files)
+  return uploadFiles(files, '/api/chat/files')
+}
 
 export const loadFile = async (id: string): Promise<Blob | undefined> => {
+  const cached = recentFiles.get(id)
+  if (cached) {
+    return cached
+  }
   const response = await apiFetch(`/api/chat/files/${encodeURIComponent(id)}`)
   if (response.status === 404) {
     return undefined
@@ -77,7 +106,9 @@ export const loadFile = async (id: string): Promise<Blob | undefined> => {
   if (!response.ok) {
     throw new Error(`读取附件失败 (${response.status})`)
   }
-  return response.blob()
+  const blob = await response.blob()
+  rememberFile({ id, blob })
+  return blob
 }
 
 /** 清空导入暂存:开始导入前清除上次中断遗留的数据,导入失败后清除本次写入。 */

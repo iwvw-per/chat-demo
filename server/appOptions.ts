@@ -53,6 +53,7 @@ export type PublicConfig = {
   model: string
   configured: boolean
   version: number
+  imageMode: 'files' | 'data-url'
   options: AppOptions
 }
 
@@ -62,6 +63,7 @@ export const publicConfig = (): PublicConfig => {
     model: provider?.model ?? 'deepseek-flash',
     configured: Boolean(provider?.apiKey),
     version: provider?.updatedAt ?? 0,
+    imageMode: config.imageMode,
     options: getAppOptions(),
   }
 }

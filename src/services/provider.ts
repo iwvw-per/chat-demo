@@ -28,6 +28,7 @@ type PublicConfig = {
   model: string
   configured: boolean
   version: number
+  imageMode: 'files' | 'data-url'
   options: AppOptions
 }
 
@@ -36,6 +37,7 @@ type ProviderState = {
   model: string
   configured: boolean
   version: number
+  imageMode: 'files' | 'data-url'
   options: AppOptions
 }
 
@@ -44,6 +46,7 @@ export const useProvider = create<ProviderState>(() => ({
   model: FALLBACK_MODEL,
   configured: false,
   version: 0,
+  imageMode: 'files',
   options: FALLBACK_OPTIONS,
 }))
 
@@ -73,6 +76,7 @@ const applyConfig = (value: PublicConfig) => {
     model: typeof value.model === 'string' && value.model ? value.model : FALLBACK_MODEL,
     configured: Boolean(value.configured),
     version: Number(value.version) || 0,
+    imageMode: value.imageMode === 'data-url' ? 'data-url' : 'files',
     options: normalizeOptions(value.options),
   })
 }
@@ -81,6 +85,8 @@ export const getModel = (): string => useProvider.getState().model || FALLBACK_M
 
 export const getSystemPrompt = (): string =>
   useProvider.getState().options.systemPrompt || DEFAULT_SYSTEM_PROMPT
+
+export const getImageMode = (): 'files' | 'data-url' => useProvider.getState().imageMode
 
 let configSource: EventSource | null = null
 let syncEpoch = 0
@@ -133,6 +139,7 @@ export const resetProvider = () => {
     model: FALLBACK_MODEL,
     configured: false,
     version: 0,
+    imageMode: 'files',
     options: FALLBACK_OPTIONS,
   })
 }

@@ -47,9 +47,12 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 | `API_BASE_URL`       | `https://api.deepseek.com` | 初始上游 API 地址                                |
 | `API_KEY`            | 空                         | 初始上游 API Key                                 |
 | `API_MODEL`          | `deepseek-flash`           | 初始默认模型                                     |
+| `API_IMAGE_MODE`     | `files`                    | `files` 走 Files API;`data-url` 由多模态模型直接读图 |
+| `API_VISION_MODEL`   | 空                         | `data-url` 模式下处理图片请求的视觉模型          |
 | `API_MESSAGES_PATH`  | `/anthropic/v1/messages`   | 上游 Messages 路径(自定义网关)                  |
 | `API_FILES_PATH`     | `/anthropic/v1/files`      | 上游 Files 路径                                  |
 | `API_MODELS_PATH`    | `/models`                  | 上游模型列表路径                                 |
+| `API_CHAT_COMPLETIONS_PATH` | `/v1/chat/completions` | 图片请求使用的 OpenAI 兼容路径              |
 | `API_ASR_PATH`       | `/v1/tools/asr`            | 上游语音识别路径                                 |
 | `API_TTS_PATH`       | `/v1/tools/tts`            | 上游语音合成路径                                 |
 | `COOKIE_SECURE`      | `false`                    | 通过 HTTPS 访问时设为 `true`                     |

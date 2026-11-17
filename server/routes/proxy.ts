@@ -6,6 +6,7 @@ import { requireAuth } from '../auth.js'
 import { config as appConfig } from '../config.js'
 import { getProviderConfig, type ProviderConfig } from '../db.js'
 import { asyncHandler, fail } from '../http.js'
+import { handleVisionMessage, hasInlineImages } from '../vision.js'
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -119,6 +120,18 @@ proxyRouter.post(
     const config = provider()
     const controller = abortOnClose(res)
     const beta = req.headers['anthropic-beta']
+    if (appConfig.imageMode === 'data-url') {
+      let body: unknown
+      try {
+        body = JSON.parse((req.body as Buffer).toString('utf8'))
+      } catch {
+        body = null
+      }
+      if (hasInlineImages(body)) {
+        await handleVisionMessage(res, body as Record<string, unknown>, config)
+        return
+      }
+    }
     res.setHeader('X-Accel-Buffering', 'no')
     await forward(
       res,

@@ -33,10 +33,14 @@ export const config = {
   apiBaseUrl: process.env.API_BASE_URL?.trim() || 'https://api.deepseek.com',
   apiKey: process.env.API_KEY?.trim() ?? '',
   apiModel: process.env.API_MODEL?.trim() || 'deepseek-flash',
+  imageMode:
+    process.env.API_IMAGE_MODE === 'data-url' ? ('data-url' as const) : ('files' as const),
+  visionModel: process.env.API_VISION_MODEL?.trim() || '',
   apiPaths: {
     messages: pathOf(process.env.API_MESSAGES_PATH, '/anthropic/v1/messages'),
     files: pathOf(process.env.API_FILES_PATH, '/anthropic/v1/files'),
     models: pathOf(process.env.API_MODELS_PATH, '/models'),
+    chatCompletions: pathOf(process.env.API_CHAT_COMPLETIONS_PATH, '/v1/chat/completions'),
     asr: pathOf(process.env.API_ASR_PATH, '/v1/tools/asr'),
     tts: pathOf(process.env.API_TTS_PATH, '/v1/tools/tts'),
   },

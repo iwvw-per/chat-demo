@@ -5,7 +5,7 @@ import type { CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
 import { useSettings } from '../settings.js'
-import { getModel, getSystemPrompt } from '../provider.js'
+import { getImageMode, getModel, getSystemPrompt } from '../provider.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
 import * as db from './db.js'
 import {
@@ -22,6 +22,7 @@ import {
   getContextRounds,
   settleReply,
   toRequestMessages,
+  type ImageData,
 } from './reply.js'
 import {
   toSessionSummary,
@@ -107,6 +108,24 @@ const sessionAccess = new Map<string, number>()
 const unsavedSessions = new Set<string>()
 /** 保存失败时保留原件，重试成功后才释放。 */
 const pendingFiles = new Map<string, db.StoredFile[]>()
+
+const pendingBlob = (id: string): Blob | undefined => {
+  for (const files of pendingFiles.values()) {
+    const found = files.find((file) => file.id === id)
+    if (found) {
+      return found.blob
+    }
+  }
+  return undefined
+}
+
+const blobToDataUrl = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(reader.error ?? new Error('Unable to read image'))
+    reader.readAsDataURL(blob)
+  })
 const deletingSessions = new Set<string>()
 const deletionTasks = new Set<Promise<boolean>>()
 const streamFlushes = new Map<string, () => void>()
@@ -802,6 +821,9 @@ const saveServerIds = (sessionId: string, serverIds: Map<string, string>) => {
  * 本地也没有原件（导入的文档附件只有元数据）时返回 null，该附件只展示、不进入请求。
  */
 const ensureServerId = async (file: FileAttachment): Promise<string | null> => {
+  if (getImageMode() === 'data-url' && file.isImage) {
+    return file.serverId ?? file.id
+  }
   if (file.serverId) {
     return file.serverId
   }
@@ -838,11 +860,53 @@ const refreshRequest = (sessionId: string, request: Request): Request => {
  * - 历史轮次（仅进入上下文的）中没有 serverId 的附件，多为导入的图片：从最新的消息往前逐张补传，
  *   失败静默跳过，该附件不进入本次请求，下次发送时再试。
  */
+const collectImageData = async (request: Request): Promise<Map<string, ImageData>> => {
+  const data = new Map<string, ImageData>()
+  if (getImageMode() !== 'data-url') {
+    return data
+  }
+  const files = new Map<string, FileAttachment>()
+  for (const file of request.question.files) {
+    if (file.isImage) {
+      files.set(file.id, file)
+    }
+  }
+  for (const [user] of getContextRounds(request.history)) {
+    for (const file of user.files) {
+      if (file.isImage) {
+        files.set(file.id, file)
+      }
+    }
+  }
+  await Promise.all(
+    [...files.values()].map(async (file) => {
+      const blob = pendingBlob(file.id) ?? (await db.loadFile(file.id).catch(() => undefined))
+      if (!blob) {
+        return
+      }
+      try {
+        const dataUrl = await blobToDataUrl(blob)
+        const comma = dataUrl.indexOf(',')
+        if (comma > 0) {
+          data.set(file.id, {
+            mediaType: blob.type || file.mimeType || 'image/png',
+            data: dataUrl.slice(comma + 1),
+          })
+        }
+      } catch {
+        // 无法读取的图片不进入本次请求
+      }
+    })
+  )
+  return data
+}
+
 const prepareFiles = async (sessionId: string, request: Request, signal: AbortSignal) => {
   const epoch = historyEpoch
   // 服务端判定 file_id 失效时会清掉会话里的 serverId，先用最新消息替换请求快照，
   // 否则快照里仍是旧 id，补传会直接复用它。
   request = refreshRequest(sessionId, request)
+  const imageDataTask = collectImageData(request)
   const serverIds = new Map<string, string>()
   // 停止生成立即生效；上传本身不取消（输入框与其他消息可能共用同一任务），完成后照常写回 serverId
   const aborted = new Promise<never>((_, reject) => {
@@ -896,6 +960,7 @@ const prepareFiles = async (sessionId: string, request: Request, signal: AbortSi
     history: request.history.map(resolve),
     question: resolve(request.question),
     prefix: request.prefix,
+    imageData: await imageDataTask,
   }
 }
 
@@ -1018,7 +1083,8 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           prepared.question,
           prepared.prefix,
           initial.thinking ?? false,
-          latestReminder
+          latestReminder,
+          prepared.imageData
         )
         const events = streamMessage(
           {

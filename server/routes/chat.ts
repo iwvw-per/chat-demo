@@ -7,6 +7,7 @@ import {
   commitStaging,
   deleteSession,
   getFile,
+  getProviderConfig,
   getSessionData,
   listSessionSummaries,
   putFile,
@@ -16,7 +17,8 @@ import {
   updateStagingFileTypes,
   type SessionSummary,
 } from '../db.js'
-import { currentUser, fail } from '../http.js'
+import { asyncHandler, currentUser, fail, rateLimit } from '../http.js'
+import { generateTitle } from '../title.js'
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -101,6 +103,30 @@ chatRouter.delete('/sessions/:id', (req, res) => {
   deleteSession(currentUser(req).id, id)
   res.status(204).end()
 })
+
+chatRouter.post(
+  '/title',
+  asyncHandler(async (req, res) => {
+    const user = currentUser(req)
+    if (!rateLimit(`title:${user.id}`, 60, 60_000)) {
+      fail(429, '请求过于频繁', 'rate_limited')
+    }
+    const question = typeof req.body?.question === 'string' ? req.body.question.trim() : ''
+    const answer = typeof req.body?.answer === 'string' ? req.body.answer.trim() : ''
+    const provider = getProviderConfig()
+    if (!question || !provider?.apiKey) {
+      res.json({ title: '' })
+      return
+    }
+    const title = await generateTitle(
+      provider,
+      question.slice(0, 2000),
+      answer.slice(0, 2000)
+    ).catch(() => '')
+    res.setHeader('Cache-Control', 'no-store')
+    res.json({ title })
+  })
+)
 
 const fileFromRequest = (req: express.Request) => {
   const id = readId(req.body?.id, '文件 ID')

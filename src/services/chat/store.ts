@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { createId } from '../../utils/id.js'
+import { apiJson } from '../api/backend.js'
 import { ApiError, streamMessage } from '../api/client.js'
 import type { CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
@@ -54,9 +55,6 @@ const serverTools = (search: boolean): CreateMessageRequest['tools'] => {
   }
   return tools
 }
-
-/** 允许自动补标题的请求；手动重命名后取消本轮标题写入，包含主动清空标题的情况。 */
-const titleRequests = new Set<AbortController>()
 
 type ChatState = {
   ready: boolean
@@ -504,10 +502,6 @@ export const selectSession = (id: string) => {
 export const renameSession = (id: string, title: string) => {
   if (get().importingHistory || deletingSessions.has(id)) {
     return
-  }
-  const controller = getStreamController(id)
-  if (controller) {
-    titleRequests.delete(controller)
   }
   if (getSession(id)) {
     updateSession(id, (session) => ({ ...session, title }))
@@ -1049,11 +1043,53 @@ const waitForRetry = (attempt: number, signal: AbortSignal) =>
  * 补传失败时回复记为 upload 错误，可重试。
  * 服务端判定 file_id 失效时重新补传后重发，退避重试且次数有上限，超过则按原始报错收尾。
  */
+const TITLE_FALLBACK_LENGTH = 24
+
+const fallbackTitle = (question: string) => {
+  const line = question.replace(/\s+/g, ' ').trim()
+  return Array.from(line).length > TITLE_FALLBACK_LENGTH
+    ? `${Array.from(line).slice(0, TITLE_FALLBACK_LENGTH).join('')}…`
+    : line
+}
+
+/** 首轮回答完成后概括标题;失败时回退到截断的提问,已有标题时不覆盖。 */
+const generateSessionTitle = async (sessionId: string, reply: AssistantMessage) => {
+  const session = getSession(sessionId)
+  if (!session || session.title) {
+    return
+  }
+  const first = session.messages.find((message) => message.role === 'user')
+  if (!first || first.role !== 'user') {
+    return
+  }
+  const question = first.content.trim() || (first.files.length > 0 ? '[图片]' : '')
+  if (!question) {
+    return
+  }
+  const answer = reply.blocks
+    .flatMap((block) => (block.type === 'text' ? [block.text] : []))
+    .join('\n')
+  let title = ''
+  try {
+    const result = await apiJson<{ title?: unknown }>('/api/chat/title', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, answer }),
+    })
+    title = typeof result?.title === 'string' ? result.title.trim() : ''
+  } catch {
+    title = ''
+  }
+  const value = title || fallbackTitle(question)
+  if (!value || get().importingHistory || deletingSessions.has(sessionId)) {
+    return
+  }
+  updateSession(sessionId, (current) => (current.title ? current : { ...current, title: value }))
+  persist(sessionId)
+}
+
 const streamReply = async (sessionId: string, initial: AssistantMessage, request: Request) => {
   const controller = new AbortController()
-  if (!getSession(sessionId)?.title) {
-    titleRequests.add(controller)
-  }
   set((state) => ({ streaming: { ...state.streaming, [sessionId]: controller } }))
   let reply = initial
   let frame = 0
@@ -1095,25 +1131,12 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
             thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
             safety_check: SAFETY_CHECK,
             tools: serverTools(initial.search ?? false),
-            ...(titleRequests.has(controller) ? { title: { enabled: true } } : {}),
           },
           controller.signal
         )
         const blockIndexes = new Map<number, number>()
         for await (const event of events) {
           receivedContent ||= event.type === 'content_block_start'
-          if (
-            event.type === 'message_delta' &&
-            (event.delta.stop_reason === 'end_turn' || event.delta.stop_reason === 'max_tokens') &&
-            event.delta.title?.trim() &&
-            titleRequests.has(controller) &&
-            !controller.signal.aborted &&
-            !get().importingHistory
-          ) {
-            const title = event.delta.title.trim()
-            updateSession(sessionId, (session) => (session.title ? session : { ...session, title }))
-            titleRequests.delete(controller)
-          }
           reply = applyEvent(reply, event, Date.now(), blockIndexes)
           if (document.visibilityState === 'hidden') {
             flush()
@@ -1170,7 +1193,6 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
       }
     }
   } finally {
-    titleRequests.delete(controller)
     streamFlushes.delete(sessionId)
     cancelAnimationFrame(frame)
     updateReply(sessionId, reply)
@@ -1180,5 +1202,8 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
       ),
     }))
     persist(sessionId)
+  }
+  if (reply.status === 'done') {
+    void generateSessionTitle(sessionId, reply)
   }
 }

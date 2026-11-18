@@ -65,8 +65,13 @@ export const ReplyArea = memo(function ReplyArea({
   hasResponse: boolean
 }) {
   useTranslate()
-  const [open, setOpen] = useState(true)
   const titleActive = streaming && !hasResponse
+  const [open, setOpen] = useState(titleActive)
+  // 开始回答或流结束后自动折叠;之后用户手动展开不再被覆盖
+  const answering = hasResponse || !streaming
+  useEffect(() => {
+    setOpen(!answering)
+  }, [answering])
   useTicker(titleActive, 1000)
   if (view.steps.length === 0 && !(message.thinking && streaming)) {
     return null
@@ -86,8 +91,8 @@ export const ReplyArea = memo(function ReplyArea({
           {open ? <IconChevronDownOutline14 /> : <IconChevronRightOutline14 />}
         </div>
       ) : null}
-      {open || !title ? (
-        <div className={styles.steps}>
+      <div className={clsx(styles.steps, title && !open && styles.stepsCollapsed)}>
+        <div className={styles.stepsInner}>
           {view.steps.map((step, index) => (
             <StepItem
               key={stepKey(step, index)}
@@ -99,7 +104,7 @@ export const ReplyArea = memo(function ReplyArea({
             />
           ))}
         </div>
-      ) : null}
+      </div>
     </div>
   )
 })

@@ -5,6 +5,9 @@ declare const styles: {
   readonly "stoppedIcon": string;
   readonly "titleText": string;
   readonly "shimmer": string;
+  readonly "steps": string;
+  readonly "stepsCollapsed": string;
+  readonly "stepsInner": string;
   readonly "withLine": string;
   readonly "content": string;
   readonly "lastItem": string;

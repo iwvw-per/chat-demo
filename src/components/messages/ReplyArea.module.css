@@ -56,6 +56,39 @@
   }
 }
 
+.steps {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    grid-template-rows 0.24s var(--ds-ease-in-out),
+    opacity 0.2s var(--ds-ease-in-out),
+    visibility 0s;
+}
+
+.stepsCollapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 0.24s var(--ds-ease-in-out),
+    opacity 0.2s var(--ds-ease-in-out),
+    visibility 0s 0.24s;
+}
+
+.stepsInner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .steps,
+  .stepsCollapsed {
+    transition: none;
+  }
+}
+
 .withLine,
 .content {
   &::after {

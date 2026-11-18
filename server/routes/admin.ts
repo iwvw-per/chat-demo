@@ -39,6 +39,75 @@ const validateModel = (value: unknown): string => {
   return model
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const parseModels = (text: string): string[] => {
+  let body: unknown
+  try {
+    body = JSON.parse(text)
+  } catch {
+    return []
+  }
+  const list = Array.isArray(body)
+    ? body
+    : isRecord(body) && Array.isArray(body.data)
+      ? body.data
+      : isRecord(body) && Array.isArray(body.models)
+        ? body.models
+        : []
+  const models = list.flatMap((item) =>
+    typeof item === 'string' ? [item] : isRecord(item) && typeof item.id === 'string' ? [item.id] : []
+  )
+  return [...new Set(models)].sort((a, b) => a.localeCompare(b))
+}
+
+type ProviderProbe = { ok: boolean; status: number; message: string; models: string[] }
+
+const probeProvider = async (baseUrl: string, apiKey: string): Promise<ProviderProbe> => {
+  try {
+    const response = await fetch(`${baseUrl}${config.apiPaths.models}`, {
+      headers: { Authorization: `Bearer ${apiKey}`, 'x-api-key': apiKey },
+      signal: AbortSignal.timeout(15_000),
+    })
+    const text = await response.text().catch(() => '')
+    if (!response.ok) {
+      let message = text.slice(0, 500)
+      try {
+        const body = JSON.parse(text) as { error?: { message?: string } }
+        if (typeof body.error?.message === 'string') {
+          message = body.error.message
+        }
+      } catch {
+        // 非 JSON 响应直接展示原文
+      }
+      return { ok: false, status: response.status, message, models: [] }
+    }
+    return { ok: true, status: response.status, message: '', models: parseModels(text) }
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      message: error instanceof Error ? error.message : String(error),
+      models: [],
+    }
+  }
+}
+
+const readProbeInput = (req: express.Request): { baseUrl: string; apiKey: string } => {
+  const provider = getProviderConfig()
+  const baseUrl = req.body?.baseUrl ? validateBaseUrl(req.body.baseUrl) : provider?.baseUrl
+  if (!baseUrl) {
+    fail(400, '请先填写 API 地址', 'invalid_base_url')
+  }
+  const inputKey = typeof req.body?.apiKey === 'string' ? req.body.apiKey.trim() : ''
+  const apiKey = inputKey || provider?.apiKey || ''
+  if (!apiKey) {
+    fail(400, '请先填写 API Key', 'missing_api_key')
+  }
+  return { baseUrl, apiKey }
+}
+
 export const adminRouter = Router()
 
 adminRouter.use(express.json({ limit: '128kb' }), requireAuth, requireAdmin)
@@ -78,43 +147,18 @@ adminRouter.put('/config', (req, res) => {
 adminRouter.post(
   '/config/test',
   asyncHandler(async (req, res) => {
-    const provider = getProviderConfig()
-    const baseUrl = req.body?.baseUrl ? validateBaseUrl(req.body.baseUrl) : provider?.baseUrl
-    if (!baseUrl) {
-      fail(400, '请先填写 API 地址', 'invalid_base_url')
-    }
-    const inputKey = typeof req.body?.apiKey === 'string' ? req.body.apiKey.trim() : ''
-    const apiKey = inputKey || provider?.apiKey || ''
-    if (!apiKey) {
-      fail(400, '请先填写 API Key', 'missing_api_key')
-    }
-    try {
-      const response = await fetch(`${baseUrl}${config.apiPaths.models}`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        signal: AbortSignal.timeout(15_000),
-      })
-      const text = await response.text().catch(() => '')
-      if (response.ok) {
-        res.json({ ok: true, status: response.status, message: '' })
-        return
-      }
-      let message = text.slice(0, 500)
-      try {
-        const body = JSON.parse(text) as { error?: { message?: string } }
-        if (typeof body.error?.message === 'string') {
-          message = body.error.message
-        }
-      } catch {
-        // 非 JSON 响应直接展示原文
-      }
-      res.json({ ok: false, status: response.status, message })
-    } catch (error) {
-      res.json({
-        ok: false,
-        status: 0,
-        message: error instanceof Error ? error.message : String(error),
-      })
-    }
+    const { baseUrl, apiKey } = readProbeInput(req)
+    const result = await probeProvider(baseUrl, apiKey)
+    res.json({ ok: result.ok, status: result.status, message: result.message })
+  })
+)
+
+adminRouter.post(
+  '/config/models',
+  asyncHandler(async (req, res) => {
+    const { baseUrl, apiKey } = readProbeInput(req)
+    res.setHeader('Cache-Control', 'no-store')
+    res.json(await probeProvider(baseUrl, apiKey))
   })
 )
 

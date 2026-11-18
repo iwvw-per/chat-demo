@@ -51,6 +51,7 @@ declare const styles: {
   readonly "userReset": string;
   readonly "formTextarea": string;
   readonly "formHint": string;
+  readonly "modelRow": string;
   readonly "checkboxList": string;
   readonly "checkboxRow": string;
 };

@@ -18,6 +18,14 @@ type AdminConfig = {
 
 type Role = 'admin' | 'user'
 
+type ModelsResponse = { ok: boolean; status: number; message: string; models: string[] }
+
+const requestModels = (baseUrl: string, apiKey?: string) =>
+  postJson<ModelsResponse>('/api/admin/config/models', {
+    baseUrl,
+    ...(apiKey ? { apiKey } : {}),
+  })
+
 const errorMessage = (error: unknown) => readAuthError(error)
 
 export const AdminSettings = () => {
@@ -30,6 +38,9 @@ export const AdminSettings = () => {
   const [options, setOptions] = useState<AppOptions>(FALLBACK_OPTIONS)
   const [configBusy, setConfigBusy] = useState(false)
   const [configMessage, setConfigMessage] = useState<{ text: string; error: boolean } | null>(null)
+  const [models, setModels] = useState<string[]>([])
+  const [modelsBusy, setModelsBusy] = useState(false)
+  const [modelsMessage, setModelsMessage] = useState<{ text: string; error: boolean } | null>(null)
 
   const [users, setUsers] = useState<AuthUser[]>([])
   const [username, setUsername] = useState('')
@@ -40,6 +51,47 @@ export const AdminSettings = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [resettingId, setResettingId] = useState<string | null>(null)
   const [resetValue, setResetValue] = useState('')
+
+  const detectModels = async (target?: { baseUrl?: string; apiKey?: string }, silent = false) => {
+    const url = (target?.baseUrl ?? baseUrl).trim()
+    const key = (target?.apiKey ?? apiKey).trim()
+    if (!url || modelsBusy) {
+      return
+    }
+    setModelsBusy(true)
+    setModelsMessage(null)
+    try {
+      const result = await requestModels(url, key || undefined)
+      setModels(result.models)
+      if (silent) {
+        return
+      }
+      if (!result.ok) {
+        setModelsMessage({
+          text: t('adminModelDetectFailed', {
+            message: result.message || String(result.status),
+          }),
+          error: true,
+        })
+      } else if (result.models.length === 0) {
+        setModelsMessage({ text: t('adminModelDetectEmpty'), error: true })
+      } else {
+        setModelsMessage({
+          text: t('adminModelDetected', { count: result.models.length }),
+          error: false,
+        })
+      }
+    } catch (error) {
+      if (!silent) {
+        setModelsMessage({
+          text: t('adminModelDetectFailed', { message: errorMessage(error) }),
+          error: true,
+        })
+      }
+    } finally {
+      setModelsBusy(false)
+    }
+  }
 
   useEffect(() => {
     let active = true
@@ -52,6 +104,13 @@ export const AdminSettings = () => {
         setBaseUrl(value.baseUrl)
         setModel(value.model)
         setOptions(value.options)
+        void requestModels(value.baseUrl)
+          .then((result) => {
+            if (active) {
+              setModels(result.models)
+            }
+          })
+          .catch(() => {})
       })
       .catch((error: unknown) => {
         if (active) {
@@ -86,6 +145,7 @@ export const AdminSettings = () => {
       setConfig(value)
       setOptions(value.options)
       setApiKey('')
+      void detectModels({ baseUrl: value.baseUrl }, true)
       showToast({ key: 'adminSavedHot' })
     } catch (error) {
       setConfigMessage({ text: errorMessage(error), error: true })
@@ -180,6 +240,7 @@ export const AdminSettings = () => {
       <div className={styles.sectionTitle}>{t('adminProviderTitle')}</div>
       <form
         className={styles.formStack}
+        autoComplete="off"
         onSubmit={(event) => {
           event.preventDefault()
           void saveConfig()
@@ -189,10 +250,14 @@ export const AdminSettings = () => {
           <span className={styles.formLabel}>{t('adminBaseUrl')}</span>
           <input
             className={styles.formInput}
+            name="upstream-base-url"
             value={baseUrl}
+            autoComplete="off"
+            inputMode="url"
             spellCheck={false}
             placeholder="https://api.deepseek.com"
             onChange={(event) => setBaseUrl(event.target.value)}
+            onBlur={() => void detectModels()}
           />
         </label>
         <label className={styles.formField}>
@@ -200,25 +265,57 @@ export const AdminSettings = () => {
           <input
             className={styles.formInput}
             type="password"
+            name="upstream-api-key"
             value={apiKey}
-            autoComplete="off"
+            autoComplete="new-password"
             spellCheck={false}
             placeholder={
               config?.hasApiKey ? t('adminApiKeySaved', { hint: config.apiKeyHint }) : t('adminApiKeyPlaceholder')
             }
             onChange={(event) => setApiKey(event.target.value)}
+            onBlur={() => {
+              if (apiKey.trim()) {
+                void detectModels()
+              }
+            }}
           />
         </label>
-        <label className={styles.formField}>
+        <div className={styles.formField}>
           <span className={styles.formLabel}>{t('adminModel')}</span>
-          <input
-            className={styles.formInput}
-            value={model}
-            spellCheck={false}
-            placeholder="deepseek-flash"
-            onChange={(event) => setModel(event.target.value)}
-          />
-        </label>
+          <div className={styles.modelRow}>
+            <input
+              className={styles.formInput}
+              name="upstream-model"
+              aria-label={t('adminModel')}
+              value={model}
+              list="admin-model-options"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="deepseek-flash"
+              onChange={(event) => setModel(event.target.value)}
+            />
+            <Button
+              variant="outlined"
+              size="s"
+              disabled={modelsBusy || !baseUrl.trim()}
+              onClick={() => void detectModels()}
+            >
+              {t(modelsBusy ? 'adminModelDetecting' : 'adminModelDetect')}
+            </Button>
+          </div>
+          <datalist id="admin-model-options">
+            {models.map((item) => (
+              <option key={item} value={item} />
+            ))}
+          </datalist>
+          <span className={modelsMessage?.error ? styles.error : styles.formHint}>
+            {modelsMessage
+              ? modelsMessage.text
+              : models.length > 0
+                ? t('adminModelDetected', { count: models.length })
+                : t('adminModelHint')}
+          </span>
+        </div>
         <div className={styles.sectionTitle}>{t('adminFrontendTitle')}</div>
         <label className={styles.formField}>
           <span className={styles.formLabel}>{t('adminAppName')}</span>

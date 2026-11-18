@@ -539,6 +539,26 @@
   color: var(--dsw-alias-label-caption);
 }
 
+.formInput:-webkit-autofill,
+.formInput:-webkit-autofill:hover,
+.formInput:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--dsw-alias-label-primary);
+  caret-color: var(--dsw-alias-label-primary);
+  box-shadow: 0 0 0 1000px var(--dsw-alias-bg-base) inset;
+  transition: background-color 99999s ease-out 0s;
+}
+
+.modelRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modelRow .formInput {
+  flex: 1;
+  min-width: 0;
+}
+
 .formActions {
   display: flex;
   flex-wrap: wrap;

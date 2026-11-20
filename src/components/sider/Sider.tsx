@@ -184,20 +184,20 @@ const drawerTransitionMs = () =>
 
 export const MobileSider = () => {
   const open = useMobileSider((state) => state.open)
-  // 收起时先播放退场过渡,再卸载抽屉
+  // 收起时先播放退场过渡,再卸载抽屉;入场用 keyframes,避免挂载与样式变更挤在同一帧导致过渡被跳过
   const [mounted, setMounted] = useState(false)
-  const [active, setActive] = useState(false)
 
   useEffect(() => {
     if (open) {
       setMounted(true)
-      const frame = requestAnimationFrame(() => setActive(true))
-      return () => cancelAnimationFrame(frame)
+      return
     }
-    setActive(false)
+    if (!mounted) {
+      return
+    }
     const timer = setTimeout(() => setMounted(false), drawerTransitionMs())
     return () => clearTimeout(timer)
-  }, [open])
+  }, [open, mounted])
 
   if (!mounted) {
     return null
@@ -205,11 +205,11 @@ export const MobileSider = () => {
   return (
     <>
       <div
-        className={clsx(styles.drawerMask, !active && styles.drawerMaskHidden)}
-        aria-hidden={!active}
+        className={clsx(styles.drawerMask, !open && styles.drawerMaskHidden)}
+        aria-hidden={!open}
         onClick={closeMobileSider}
       />
-      <div className={clsx(styles.drawer, !active && styles.drawerHidden)} aria-hidden={!active}>
+      <div className={clsx(styles.drawer, !open && styles.drawerHidden)} aria-hidden={!open}>
         <Sider mobile />
       </div>
     </>

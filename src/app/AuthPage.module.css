@@ -215,3 +215,21 @@
     background: transparent;
   }
 }
+
+@keyframes ds-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes ds-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

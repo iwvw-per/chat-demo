@@ -4,7 +4,6 @@ import { setupTheme } from './app/theme.js'
 import { ensureKatex } from './services/markdown/katex.js'
 import './app/theme.css'
 import './app/global.css'
-import './app/animations.css'
 
 ensureKatex()
 setupTheme()

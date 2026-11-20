@@ -1,8 +1,10 @@
 import clsx from 'clsx'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useAnchoredPosition, useDismiss } from './anchored.js'
 import styles from './Menu.module.css'
+
+const MENU_EXIT_MS = 120
 
 export type MenuOption = {
   key: string
@@ -21,10 +23,22 @@ export const Menu = ({
   children: (props: { open: boolean; toggle: () => void }) => ReactNode
 }) => {
   const [open, setOpen] = useState(false)
-  const close = () => setOpen(false)
+  const [closing, setClosing] = useState(false)
+  const visible = open || closing
+  const close = () => {
+    setOpen(false)
+    setClosing(true)
+  }
+  useEffect(() => {
+    if (!closing) {
+      return
+    }
+    const timer = setTimeout(() => setClosing(false), MENU_EXIT_MS)
+    return () => clearTimeout(timer)
+  }, [closing])
   // 左侧对齐并再左移 5px，让菜单文字与触发元素图标对齐
   const { anchorRef, floatingRef, position } = useAnchoredPosition<HTMLSpanElement, HTMLDivElement>(
-    open,
+    visible,
     { align: 'start', alignOffset: -5, offset: 4 }
   )
   useDismiss(open, [anchorRef, floatingRef], close)
@@ -32,14 +46,24 @@ export const Menu = ({
   return (
     <>
       <span ref={anchorRef} className={styles.anchor}>
-        {children({ open, toggle: () => setOpen((value) => !value) })}
+        {children({
+          open,
+          toggle: () => {
+            if (open) {
+              close()
+              return
+            }
+            setClosing(false)
+            setOpen(true)
+          },
+        })}
       </span>
-      {open
+      {visible
         ? createPortal(
             <div
               ref={floatingRef}
-              className={styles.menu}
-              style={position ?? undefined}
+              className={clsx(styles.menu, closing && styles.closing)}
+              style={position ?? { visibility: 'hidden' }}
               role="menu"
             >
               {options.map((option) => (
@@ -48,7 +72,7 @@ export const Menu = ({
                   role="menuitem"
                   className={clsx(styles.option, option.danger && styles.danger)}
                   onClick={() => {
-                    setOpen(false)
+                    close()
                     option.onSelect()
                   }}
                 >

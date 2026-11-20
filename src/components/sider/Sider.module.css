@@ -228,12 +228,13 @@
   bottom: 0;
   left: 0;
   z-index: 800;
-  transform: translateX(0);
-  transition: transform var(--ds-duration-medium) var(--ds-ease-in-out);
   will-change: transform;
+  animation: ds-slide-in-left var(--ds-duration-medium) var(--ds-ease-standard);
+  transition: transform var(--ds-duration-medium) var(--ds-ease-standard);
 }
 
 .drawerHidden {
+  animation: none;
   transform: translateX(-100%);
 }
 
@@ -242,8 +243,8 @@
   inset: 0;
   z-index: 799;
   background-color: rgba(0, 0, 0, 0.18);
-  opacity: 1;
-  transition: opacity var(--ds-duration-medium) var(--ds-ease-in-out);
+  animation: ds-fade var(--ds-duration-medium) var(--ds-ease-standard);
+  transition: opacity var(--ds-duration-medium) var(--ds-ease-standard);
 
   [data-ds-dark-theme] & {
     background-color: rgba(0, 0, 0, 0.45);
@@ -292,5 +293,25 @@
     margin-left: 10px;
     font-size: 16px;
     line-height: 22px;
+  }
+}
+
+@keyframes ds-slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: none;
+  }
+}
+
+@keyframes ds-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
   }
 }

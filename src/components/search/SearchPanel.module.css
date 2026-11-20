@@ -9,6 +9,7 @@
   border-left: 1px solid var(--dsw-alias-border-l2);
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-bg-base);
+  animation: ds-slide-in-right var(--ds-duration-medium) var(--ds-ease-standard);
 }
 
 .header {
@@ -62,5 +63,15 @@
     width: auto;
     max-width: none;
     border-left: none;
+  }
+}
+
+@keyframes ds-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: none;
   }
 }

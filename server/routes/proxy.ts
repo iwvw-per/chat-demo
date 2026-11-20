@@ -96,6 +96,18 @@ const bearerHeaders = (config: ProviderConfig): Record<string, string> => ({
   Authorization: `Bearer ${config.apiKey}`,
 })
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/** 客户端声明了 deepseek_web_search / deepseek_read_url 时改走适配器,由服务端执行搜索 */
+const hasSearchTools = (body: unknown): boolean =>
+  isRecord(body) &&
+  Array.isArray(body.tools) &&
+  body.tools.some(
+    (tool) =>
+      isRecord(tool) && (tool.type === 'deepseek_web_search' || tool.type === 'deepseek_read_url')
+  )
+
 export const proxyRouter = Router()
 
 proxyRouter.use(requireAuth)
@@ -120,10 +132,13 @@ proxyRouter.post(
     const config = provider()
     const controller = abortOnClose(res)
     const beta = req.headers['anthropic-beta']
-    if (appConfig.imageMode === 'data-url' || appConfig.thinkingMode === 'openai') {
+    const raw = req.body as Buffer
+    const maybeSearch =
+      raw.includes('deepseek_web_search') || raw.includes('deepseek_read_url')
+    if (appConfig.imageMode === 'data-url' || appConfig.thinkingMode === 'openai' || maybeSearch) {
       let body: unknown
       try {
-        body = JSON.parse((req.body as Buffer).toString('utf8'))
+        body = JSON.parse(raw.toString('utf8'))
       } catch {
         body = null
       }
@@ -135,7 +150,8 @@ proxyRouter.post(
         (body as { thinking: { type: string } }).thinking.type === 'enabled'
       if (
         hasInlineImages(body) ||
-        (appConfig.thinkingMode === 'openai' && thinking && body !== null)
+        (appConfig.thinkingMode === 'openai' && thinking && body !== null) ||
+        hasSearchTools(body)
       ) {
         await handleChatMessage(res, body as Record<string, unknown>, config)
         return

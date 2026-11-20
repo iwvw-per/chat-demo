@@ -33,8 +33,12 @@ export const config = {
   apiBaseUrl: process.env.API_BASE_URL?.trim() || 'https://api.deepseek.com',
   apiKey: process.env.API_KEY?.trim() ?? '',
   apiModel: process.env.API_MODEL?.trim() || 'deepseek-flash',
+  searchApiKey:
+    process.env.ANYSEARCH_API_KEY?.trim() || process.env.SEARCH_API_KEY?.trim() || '',
   imageMode:
     process.env.API_IMAGE_MODE === 'data-url' ? ('data-url' as const) : ('files' as const),
+  documentMode:
+    process.env.API_DOCUMENT_MODE === 'files' ? ('files' as const) : ('inline-text' as const),
   visionModel: process.env.API_VISION_MODEL?.trim() || '',
   thinkingMode:
     process.env.API_THINKING_MODE === 'openai' ? ('openai' as const) : ('anthropic' as const),

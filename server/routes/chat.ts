@@ -7,16 +7,19 @@ import {
   commitStaging,
   deleteSession,
   getFile,
+  getFileText,
   getProviderConfig,
   getSessionData,
   listSessionSummaries,
   putFile,
+  putFileText,
   putSession,
   putStagingFile,
   renameSession,
   updateStagingFileTypes,
   type SessionSummary,
 } from '../db.js'
+import { extractDocumentText } from '../documents.js'
 import { asyncHandler, currentUser, fail, rateLimit } from '../http.js'
 import { generateTitle } from '../title.js'
 
@@ -136,14 +139,48 @@ const fileFromRequest = (req: express.Request) => {
   }
   return {
     id,
+    name: uploaded.originalname || id,
     mimeType: uploaded.mimetype || '',
     data: new Uint8Array(uploaded.buffer),
   }
 }
 
-chatRouter.post('/files', upload.single('file'), (req, res) => {
-  putFile(currentUser(req).id, fileFromRequest(req), Date.now())
-  res.status(204).end()
+/** 提取文档文本写入文本列;不支持或失败都不影响上传本身 */
+const extractFileText = async (
+  userId: string,
+  file: { id: string; name: string; mimeType: string; data: Uint8Array }
+): Promise<void> => {
+  try {
+    const result = await extractDocumentText(file.name, file.mimeType, Buffer.from(file.data))
+    if (result) {
+      putFileText(userId, file.id, result.text, result.truncated)
+    }
+  } catch {
+    // 提取失败时保留上传结果,前端会降级
+  }
+}
+
+chatRouter.post(
+  '/files',
+  upload.single('file'),
+  asyncHandler(async (req, res) => {
+    const user = currentUser(req)
+    const file = fileFromRequest(req)
+    putFile(user.id, file, Date.now())
+    await extractFileText(user.id, file)
+    res.status(204).end()
+  })
+)
+
+chatRouter.get('/files/:id/text', (req, res) => {
+  const id = readId(req.params.id, '文件 ID')
+  const text = getFileText(currentUser(req).id, id)
+  if (!text) {
+    res.status(404).end()
+    return
+  }
+  res.setHeader('Cache-Control', 'no-store')
+  res.json(text)
 })
 
 chatRouter.get('/files/:id', (req, res) => {

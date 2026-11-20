@@ -54,6 +54,7 @@ export type PublicConfig = {
   configured: boolean
   version: number
   imageMode: 'files' | 'data-url'
+  documentMode: 'files' | 'inline-text'
   options: AppOptions
 }
 
@@ -64,6 +65,7 @@ export const publicConfig = (): PublicConfig => {
     configured: Boolean(provider?.apiKey),
     version: provider?.updatedAt ?? 0,
     imageMode: config.imageMode,
+    documentMode: config.documentMode,
     options: getAppOptions(),
   }
 }

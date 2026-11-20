@@ -29,8 +29,11 @@ type PublicConfig = {
   configured: boolean
   version: number
   imageMode: 'files' | 'data-url'
+  documentMode: 'files' | 'inline-text'
   options: AppOptions
 }
+
+export type DocumentMode = 'files' | 'inline-text'
 
 type ProviderState = {
   loaded: boolean
@@ -38,6 +41,7 @@ type ProviderState = {
   configured: boolean
   version: number
   imageMode: 'files' | 'data-url'
+  documentMode: DocumentMode
   options: AppOptions
 }
 
@@ -47,6 +51,7 @@ export const useProvider = create<ProviderState>(() => ({
   configured: false,
   version: 0,
   imageMode: 'files',
+  documentMode: 'inline-text',
   options: FALLBACK_OPTIONS,
 }))
 
@@ -77,6 +82,7 @@ const applyConfig = (value: PublicConfig) => {
     configured: Boolean(value.configured),
     version: Number(value.version) || 0,
     imageMode: value.imageMode === 'data-url' ? 'data-url' : 'files',
+    documentMode: value.documentMode === 'files' ? 'files' : 'inline-text',
     options: normalizeOptions(value.options),
   })
 }
@@ -87,6 +93,8 @@ export const getSystemPrompt = (): string =>
   useProvider.getState().options.systemPrompt || DEFAULT_SYSTEM_PROMPT
 
 export const getImageMode = (): 'files' | 'data-url' => useProvider.getState().imageMode
+
+export const getDocumentMode = (): DocumentMode => useProvider.getState().documentMode
 
 let configSource: EventSource | null = null
 let syncEpoch = 0
@@ -140,6 +148,7 @@ export const resetProvider = () => {
     configured: false,
     version: 0,
     imageMode: 'files',
+    documentMode: 'inline-text',
     options: FALLBACK_OPTIONS,
   })
 }

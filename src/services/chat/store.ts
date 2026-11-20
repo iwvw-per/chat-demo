@@ -6,7 +6,7 @@ import type { CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
 import { useSettings } from '../settings.js'
-import { getImageMode, getModel, getSystemPrompt } from '../provider.js'
+import { getDocumentMode, getImageMode, getModel, getSystemPrompt } from '../provider.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
 import * as db from './db.js'
 import {
@@ -902,12 +902,66 @@ const collectImageData = async (request: Request): Promise<Map<string, ImageData
   return data
 }
 
+const fetchFileText = async (id: string): Promise<string | undefined> => {
+  try {
+    const body = await apiJson<{ text?: unknown }>(
+      `/api/chat/files/${encodeURIComponent(id)}/text`,
+      { cache: 'no-store' }
+    )
+    return typeof body?.text === 'string' ? body.text : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * 文档内联模式下收集附件的文本:先取服务端已提取的结果,缺失时补传原件后重试。
+ * 单个文件失败不影响其他文件,也不阻断发送。
+ */
+const collectDocumentText = async (request: Request): Promise<Map<string, string>> => {
+  const texts = new Map<string, string>()
+  if (getDocumentMode() !== 'inline-text') {
+    return texts
+  }
+  const files = new Map<string, FileAttachment>()
+  for (const file of request.question.files) {
+    if (!file.isImage) {
+      files.set(file.id, file)
+    }
+  }
+  for (const [user] of getContextRounds(request.history)) {
+    for (const file of user.files) {
+      if (!file.isImage) {
+        files.set(file.id, file)
+      }
+    }
+  }
+  await Promise.all(
+    [...files.values()].map(async (file) => {
+      let text = await fetchFileText(file.id)
+      if (text === undefined) {
+        const blob = pendingBlob(file.id) ?? (await db.loadFile(file.id).catch(() => undefined))
+        if (!blob) {
+          return
+        }
+        await db.saveFiles([{ id: file.id, blob }]).catch(() => {})
+        text = await fetchFileText(file.id)
+      }
+      if (text !== undefined) {
+        texts.set(file.id, text)
+      }
+    })
+  )
+  return texts
+}
+
 const prepareFiles = async (sessionId: string, request: Request, signal: AbortSignal) => {
   const epoch = historyEpoch
   // 服务端判定 file_id 失效时会清掉会话里的 serverId，先用最新消息替换请求快照，
   // 否则快照里仍是旧 id，补传会直接复用它。
   request = refreshRequest(sessionId, request)
   const imageDataTask = collectImageData(request)
+  const documentTextTask = collectDocumentText(request)
   const serverIds = new Map<string, string>()
   // 停止生成立即生效；上传本身不取消（输入框与其他消息可能共用同一任务），完成后照常写回 serverId
   const aborted = new Promise<never>((_, reject) => {
@@ -962,6 +1016,7 @@ const prepareFiles = async (sessionId: string, request: Request, signal: AbortSi
     question: resolve(request.question),
     prefix: request.prefix,
     imageData: await imageDataTask,
+    documentText: await documentTextTask,
   }
 }
 
@@ -1127,7 +1182,8 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           prepared.prefix,
           initial.thinking ?? false,
           latestReminder,
-          prepared.imageData
+          prepared.imageData,
+          prepared.documentText
         )
         const events = streamMessage(
           {

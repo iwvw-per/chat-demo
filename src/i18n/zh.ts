@@ -142,6 +142,7 @@ export const zh = {
   uploadFileStatusUploading: '上传中...',
   uploadServerBusy: '服务器繁忙',
   uploadParseFailed: '解析失败',
+  documentTextUnavailable: '未能提取文本内容',
   uploadFileCountLimit: '已上传文件数达到上限（{limit} 个），可 ',
   uploadStorageLimit: '已上传文件占用空间达到上限（{limit}GB），可 ',
   uploadDeleteFiles: '删除文件',

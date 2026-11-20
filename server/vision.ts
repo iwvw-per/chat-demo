@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Response } from 'express'
 import { config } from './config.js'
+import { fetchPage, searchWeb, type WebFetchPage, type WebSearchItem } from './search.js'
 import type { ProviderConfig } from './db.js'
 import { HttpError } from './http.js'
 
@@ -11,8 +12,10 @@ type OpenAIContentPart =
   | { type: 'image_url'; image_url: { url: string } }
 
 type OpenAIMessage = {
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'tool'
   content: string | OpenAIContentPart[]
+  tool_calls?: { id: string; type: 'function'; function: { name: string; arguments: string } }[]
+  tool_call_id?: string
 }
 
 type InlineImageBlock = Value & {
@@ -21,6 +24,45 @@ type InlineImageBlock = Value & {
 
 const isRecord = (value: unknown): value is Value =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/** 客户端声明的服务端工具映射为 OpenAI function 工具,交给上游决定何时调用 */
+const OPENAI_TOOLS: Record<string, Value> = {
+  deepseek_web_search: {
+    type: 'function',
+    function: {
+      name: 'deepseek_web_search',
+      description: '联网搜索网页并返回标题、链接与摘要,用于获取实时信息',
+      parameters: {
+        type: 'object',
+        properties: { query: { type: 'string', description: '检索关键词' } },
+        required: ['query'],
+      },
+    },
+  },
+  deepseek_read_url: {
+    type: 'function',
+    function: {
+      name: 'deepseek_read_url',
+      description: '读取指定网页的正文内容',
+      parameters: {
+        type: 'object',
+        properties: { url: { type: 'string', description: '网页地址' } },
+        required: ['url'],
+      },
+    },
+  },
+}
+
+const MAX_TOOL_ROUNDS = 4
+const MAX_TOOL_CALLS = 4
+
+const declaredTools = (body: Value): string[] => {
+  const tools = Array.isArray(body.tools) ? body.tools : []
+  const names = tools.flatMap((tool) =>
+    isRecord(tool) && typeof tool.type === 'string' && tool.type in OPENAI_TOOLS ? [tool.type] : []
+  )
+  return [...new Set(names)]
+}
 
 const blocksOf = (value: unknown): Value[] =>
   Array.isArray(value) ? value.filter(isRecord) : []
@@ -140,44 +182,21 @@ export const handleChatMessage = async (
   })
 
   const thinking = isRecord(body.thinking) && body.thinking.type === 'enabled'
-  const payload: Record<string, unknown> = { model, messages, stream: true, max_tokens: 4096 }
+  const tools = declaredTools(body)
+  const upstreamTools = tools.map((name) => OPENAI_TOOLS[name])
+  const basePayload: Record<string, unknown> = {
+    model,
+    messages,
+    stream: true,
+    max_tokens: 4096,
+    ...(upstreamTools.length > 0 ? { tools: upstreamTools } : {}),
+  }
   if (images === 0 && thinking) {
-    payload.reasoning_effort = 'high'
-  }
-  let upstream: globalThis.Response
-  try {
-    upstream = await fetch(
-      `${provider.baseUrl.replace(/\/+$/, '')}${config.apiPaths.chatCompletions}`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${provider.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      }
-    )
-  } catch (error) {
-    if (controller.signal.aborted) {
-      return
-    }
-    throw new HttpError(
-      502,
-      `无法连接模型接口: ${error instanceof Error ? error.message : String(error)}`
-    )
-  }
-  if (!upstream.ok) {
-    await pipeError(res, upstream)
-    return
-  }
-  if (!upstream.body) {
-    throw new HttpError(502, '模型接口没有返回流')
+    basePayload.reasoning_effort = 'high'
   }
 
-  const reader = upstream.body.getReader()
-  const decoder = new TextDecoder()
   const answerId = `msg_${randomUUID()}`
+  const rounds = messages
   let started = false
   let thinkingOpen = false
   let textOpen = false
@@ -185,6 +204,7 @@ export const handleChatMessage = async (
   let textIndex = -1
   let nextIndex = 0
   let answer = ''
+  let roundText = ''
   let inputTokens = 0
   let outputTokens = 0
   let stopReason: 'end_turn' | 'max_tokens' = 'end_turn'
@@ -272,6 +292,87 @@ export const handleChatMessage = async (
     })
   }
 
+  /** 服务端工具结果按 Anthropic 事件补齐,前端据此渲染搜索时间线与来源卡片 */
+  const emitServerToolUse = (
+    id: string,
+    name: 'deepseek_web_search' | 'deepseek_read_url',
+    kind: 'search' | 'read_link',
+    input: Value
+  ) => {
+    start()
+    const index = nextIndex
+    nextIndex += 1
+    sendEvent(res, 'content_block_start', {
+      type: 'content_block_start',
+      index,
+      content_block: {
+        type: 'server_tool_use',
+        id,
+        name,
+        input,
+        caller: { type: 'direct' },
+        kind,
+      },
+    })
+    sendEvent(res, 'content_block_stop', { type: 'content_block_stop', index })
+  }
+
+  const emitSearchResult = (toolUseId: string, results: WebSearchItem[]) => {
+    const index = nextIndex
+    nextIndex += 1
+    sendEvent(res, 'content_block_start', {
+      type: 'content_block_start',
+      index,
+      content_block: {
+        type: 'web_search_tool_result',
+        tool_use_id: toolUseId,
+        kind: 'search',
+        content:
+          results.length > 0
+            ? results.map((item) => ({
+                type: 'web_search_result',
+                title: item.title,
+                url: item.url,
+                snippet: item.snippet,
+                site_name: null,
+                site_icon: null,
+                page_age: item.pageAge,
+              }))
+            : [{ type: 'web_search_tool_result_error', error_code: 'unavailable' }],
+      },
+    })
+    sendEvent(res, 'content_block_stop', { type: 'content_block_stop', index })
+  }
+
+  const emitFetchResult = (toolUseId: string, page: WebFetchPage | null) => {
+    const index = nextIndex
+    nextIndex += 1
+    sendEvent(res, 'content_block_start', {
+      type: 'content_block_start',
+      index,
+      content_block: {
+        type: 'web_fetch_tool_result',
+        tool_use_id: toolUseId,
+        kind: 'read_link',
+        content: page
+          ? {
+              type: 'web_fetch_result',
+              url: page.url,
+              content: {
+                type: 'document',
+                source: { type: 'text', media_type: 'text/plain', data: page.text },
+                title: page.title,
+              },
+              published_at: null,
+            }
+          : { type: 'web_fetch_tool_result_error', error_code: 'url_not_accessible' },
+      },
+    })
+    sendEvent(res, 'content_block_stop', { type: 'content_block_stop', index })
+  }
+
+  const pendingCalls = new Map<number, { id: string; name: string; args: string }>()
+
   const processPayload = (payload: Value) => {
     if (isRecord(payload.usage)) {
       inputTokens = Number(payload.usage.prompt_tokens) || inputTokens
@@ -299,11 +400,27 @@ export const handleChatMessage = async (
       closeThinking()
       openText()
       answer += content
+      roundText += content
       sendEvent(res, 'content_block_delta', {
         type: 'content_block_delta',
         index: textIndex,
         delta: { type: 'text_delta', text: content },
       })
+    }
+    for (const call of blocksOf(delta.tool_calls)) {
+      const index = Number(call.index) || 0
+      const current = pendingCalls.get(index) ?? { id: '', name: '', args: '' }
+      if (typeof call.id === 'string') {
+        current.id = call.id
+      }
+      const fn = isRecord(call.function) ? call.function : {}
+      if (typeof fn.name === 'string') {
+        current.name = fn.name
+      }
+      if (typeof fn.arguments === 'string') {
+        current.args += fn.arguments
+      }
+      pendingCalls.set(index, current)
     }
     if (choice.finish_reason === 'length') {
       stopReason = 'max_tokens'
@@ -337,41 +454,168 @@ export const handleChatMessage = async (
     processPayload(payload)
   }
 
-  let buffer = ''
-  try {
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) {
-        break
+  /** 单轮请求:转发文本/思考增量,并把工具调用累积到 pendingCalls */
+  const runRound = async (payload: Value) => {
+    pendingCalls.clear()
+    roundText = ''
+    let upstream: globalThis.Response
+    try {
+      upstream = await fetch(
+        `${provider.baseUrl.replace(/\/+$/, '')}${config.apiPaths.chatCompletions}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${provider.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        }
+      )
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return false
       }
-      buffer += decoder.decode(value, { stream: true })
-      let index = buffer.indexOf('\n')
-      while (index >= 0) {
-        const line = buffer.slice(0, index).replace(/\r$/, '')
-        buffer = buffer.slice(index + 1)
-        handleLine(line)
-        index = buffer.indexOf('\n')
-      }
-    }
-    if (buffer.trim()) {
-      handleLine(buffer.trim())
-    }
-  } catch (error) {
-    if (controller.signal.aborted) {
-      return
-    }
-    if (!started) {
       throw new HttpError(
         502,
-        error instanceof Error ? error.message : '模型接口流读取失败'
+        `无法连接模型接口: ${error instanceof Error ? error.message : String(error)}`
       )
     }
-    sendEvent(res, 'error', {
-      type: 'error',
-      error: { type: 'api_error', message: error instanceof Error ? error.message : '读取失败' },
+    if (!upstream.ok) {
+      await pipeError(res, upstream)
+      return false
+    }
+    if (!upstream.body) {
+      throw new HttpError(502, '模型接口没有返回流')
+    }
+    const reader = upstream.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) {
+          break
+        }
+        buffer += decoder.decode(value, { stream: true })
+        let index = buffer.indexOf('\n')
+        while (index >= 0) {
+          const line = buffer.slice(0, index).replace(/\r$/, '')
+          buffer = buffer.slice(index + 1)
+          handleLine(line)
+          index = buffer.indexOf('\n')
+        }
+      }
+      if (buffer.trim()) {
+        handleLine(buffer.trim())
+      }
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return false
+      }
+      if (!started) {
+        throw new HttpError(
+          502,
+          error instanceof Error ? error.message : '模型接口流读取失败'
+        )
+      }
+      sendEvent(res, 'error', {
+        type: 'error',
+        error: { type: 'api_error', message: error instanceof Error ? error.message : '读取失败' },
+      })
+      res.end()
+      return false
+    }
+    return true
+  }
+
+  const runToolCall = async (
+    call: { id: string; name: string; args: string },
+    round: number
+  ): Promise<string> => {
+    let parsed: Value = {}
+    try {
+      parsed = isRecord(JSON.parse(call.args || '{}')) ? (JSON.parse(call.args || '{}') as Value) : {}
+    } catch {
+      parsed = {}
+    }
+    if (call.name === 'deepseek_web_search') {
+      const query =
+        typeof parsed.query === 'string' && parsed.query.trim() ? parsed.query.trim() : lastUserText
+      const toolUseId = `srvtoolu_s_${round}_${randomUUID().replace(/-/g, '')}`
+      emitServerToolUse(toolUseId, 'deepseek_web_search', 'search', {
+        action: 'search',
+        query,
+        queries: [query],
+      })
+      try {
+        const results = await searchWeb(query, 6)
+        emitSearchResult(toolUseId, results)
+        return JSON.stringify({
+          results: results.map((item) => ({
+            title: item.title,
+            url: item.url,
+            snippet: item.snippet,
+          })),
+        })
+      } catch (error) {
+        emitSearchResult(toolUseId, [])
+        return `搜索失败: ${error instanceof Error ? error.message : String(error)}`
+      }
+    }
+    const url = typeof parsed.url === 'string' ? parsed.url.trim() : ''
+    const toolUseId = `srvtoolu_rl_${round}_${randomUUID().replace(/-/g, '')}`
+    if (!url) {
+      return '读取失败:缺少 url'
+    }
+    emitServerToolUse(toolUseId, 'deepseek_read_url', 'read_link', {
+      action: 'read_link',
+      url,
     })
-    res.end()
-    return
+    try {
+      const page = await fetchPage(url)
+      emitFetchResult(toolUseId, page)
+      return page ? page.text : '网页内容不可访问'
+    } catch (error) {
+      emitFetchResult(toolUseId, null)
+      return `读取失败: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+    const isLastRound = round === MAX_TOOL_ROUNDS - 1
+    const continued = await runRound({
+      ...basePayload,
+      messages: rounds,
+      ...(isLastRound && upstreamTools.length > 0 ? { tools: undefined } : {}),
+    })
+    if (!continued) {
+      return
+    }
+    const calls = [...pendingCalls.values()].filter(
+      (call) => call.name && tools.includes(call.name)
+    )
+    if (calls.length === 0) {
+      break
+    }
+    closeThinking()
+    closeText()
+    const results: { id: string; content: string }[] = []
+    for (const call of calls.slice(0, MAX_TOOL_CALLS)) {
+      results.push({ id: call.id, content: await runToolCall(call, round) })
+    }
+    rounds.push({
+      role: 'assistant',
+      content: roundText,
+      tool_calls: calls.slice(0, MAX_TOOL_CALLS).map((call) => ({
+        id: call.id,
+        type: 'function',
+        function: { name: call.name, arguments: call.args || '{}' },
+      })),
+    })
+    for (const result of results) {
+      rounds.push({ role: 'tool', tool_call_id: result.id, content: result.content })
+    }
   }
 
   if (!started || (!answer && !thinkingOpen)) {

@@ -3,7 +3,7 @@ import type { LinkedMessage, TranslationMessage } from '../i18n/index.js'
 import { uploadFile } from './api/client.js'
 import { classifyApiError, getUploadErrorInfo, isRetryableApiError } from './api/errors.js'
 import type { FilePurpose } from './api/types.js'
-import { getImageMode } from './provider.js'
+import { getDocumentMode, getImageMode } from './provider.js'
 import { ACCEPT_FILE_EXTS } from './uploadExts.js'
 
 /** 允许上传的扩展名，按扩展名白名单过滤，清单见 uploadExts.ts */
@@ -175,6 +175,10 @@ export const uploadAttachment = (
     return current.promise
   }
   if (isImage && getImageMode() === 'data-url') {
+    setTask(id, { status: 'done', serverId: id })
+    return Promise.resolve(id)
+  }
+  if (!isImage && getDocumentMode() === 'inline-text') {
     setTask(id, { status: 'done', serverId: id })
     return Promise.resolve(id)
   }

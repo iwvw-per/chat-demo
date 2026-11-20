@@ -100,6 +100,8 @@ db.exec(`
     id TEXT NOT NULL,
     mime_type TEXT NOT NULL DEFAULT '',
     data BLOB NOT NULL,
+    text_content TEXT,
+    text_truncated INTEGER,
     created_at INTEGER NOT NULL,
     PRIMARY KEY (user_id, id)
   );
@@ -127,6 +129,14 @@ db.exec(`
 const appConfigColumns = db.prepare('PRAGMA table_info(app_config)').all()
 if (!appConfigColumns.some((column) => String(column.name) === 'options')) {
   db.exec("ALTER TABLE app_config ADD COLUMN options TEXT NOT NULL DEFAULT '{}'")
+}
+
+const chatFileColumns = db.prepare('PRAGMA table_info(chat_files)').all()
+if (!chatFileColumns.some((column) => String(column.name) === 'text_content')) {
+  db.exec('ALTER TABLE chat_files ADD COLUMN text_content TEXT')
+}
+if (!chatFileColumns.some((column) => String(column.name) === 'text_truncated')) {
+  db.exec('ALTER TABLE chat_files ADD COLUMN text_truncated INTEGER')
 }
 
 const publicUser = (row: UserRow): PublicUser => ({
@@ -463,8 +473,36 @@ export const deleteSession = (userId: string, id: string): void => {
 export const putFile = (userId: string, file: FileInput, now: number): void => {
   db.prepare(
     `INSERT INTO chat_files (user_id, id, mime_type, data, created_at) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(user_id, id) DO UPDATE SET mime_type = excluded.mime_type, data = excluded.data`
+     ON CONFLICT(user_id, id) DO UPDATE SET
+       mime_type = excluded.mime_type,
+       data = excluded.data,
+       text_content = NULL,
+       text_truncated = NULL`
   ).run(userId, file.id, file.mimeType, file.data, now)
+}
+
+export const putFileText = (
+  userId: string,
+  id: string,
+  text: string,
+  truncated: boolean
+): void => {
+  db.prepare(
+    'UPDATE chat_files SET text_content = ?, text_truncated = ? WHERE user_id = ? AND id = ?'
+  ).run(text, truncated ? 1 : 0, userId, id)
+}
+
+export const getFileText = (
+  userId: string,
+  id: string
+): { text: string; truncated: boolean } | null => {
+  const row = db
+    .prepare('SELECT text_content, text_truncated FROM chat_files WHERE user_id = ? AND id = ?')
+    .get(userId, id)
+  if (!row || row.text_content === null || row.text_content === undefined) {
+    return null
+  }
+  return { text: String(row.text_content), truncated: Number(row.text_truncated) === 1 }
 }
 
 export const getFile = (

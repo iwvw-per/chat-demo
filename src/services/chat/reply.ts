@@ -1,3 +1,4 @@
+import { translate } from '../../i18n/index.js'
 import type {
   AssistantBlockParam,
   FileBlockParam,
@@ -17,6 +18,20 @@ import type {
 
 export type ImageData = { mediaType: string; data: string }
 type ImageDataMap = ReadonlyMap<string, ImageData>
+
+export type DocumentTextMap = ReadonlyMap<string, string>
+
+const toDocumentText = (files: FileAttachment[], documentText?: DocumentTextMap): string =>
+  files
+    .flatMap((file) => {
+      const text = documentText?.get(file.id)
+      if (text === undefined) {
+        return []
+      }
+      const body = text.trim() ? text : translate('documentTextUnavailable')
+      return [`<file name="${file.name.replace(/"/g, '&quot;')}">\n${body}\n</file>`]
+    })
+    .join('\n')
 
 /**
  * 文件按 Files API 的 file_id(附件的 serverId)引用:图片用 image 块,其余用 document 块。
@@ -216,8 +231,16 @@ const isUsableReply = (message: Message): message is AssistantMessage =>
   getReplyText(message) !== ''
 
 /** 有文件时用内容块数组：先文件后文本，文件按 Files API 的 file_id 引用 */
-const toUserParam = ({ content, files }: UserMessage, imageData?: ImageDataMap): MessageParam => {
-  const blocks = toFileBlocks(files, imageData)
+const toUserParam = (
+  { content, files }: UserMessage,
+  imageData?: ImageDataMap,
+  documentText?: DocumentTextMap
+): MessageParam => {
+  const blocks: (FileBlockParam | TextBlockParam)[] = toFileBlocks(files, imageData)
+  const document = toDocumentText(files, documentText)
+  if (document) {
+    blocks.push({ type: 'text', text: document })
+  }
   return blocks.length === 0
     ? { role: 'user', content }
     : {
@@ -320,8 +343,11 @@ export const toRequestMessages = (
   prefix?: AssistantMessage,
   thinking = prefix?.thinking ?? false,
   latestReminder?: string,
-  imageData?: ImageDataMap
+  imageData?: ImageDataMap,
+  documentText?: DocumentTextMap
 ): MessageParam[] => {
+  const hasDocumentText = (files: FileAttachment[]) =>
+    files.some((file) => documentText?.get(file.id) !== undefined)
   const messages: MessageParam[] = []
   let previousReminder: string | undefined
   const appendReminder = (reminder: string | undefined) => {
@@ -333,14 +359,18 @@ export const toRequestMessages = (
   }
   for (const [user, reply] of getContextRounds(history)) {
     // 历史提问没有文字、附件也都没有 serverId 时，提问为空，连同回答一起省略。
-    if (!user.content && toFileBlocks(user.files, imageData).length === 0) {
+    if (
+      !user.content &&
+      toFileBlocks(user.files, imageData).length === 0 &&
+      !hasDocumentText(user.files)
+    ) {
       continue
     }
     appendReminder(reply.latestReminder)
-    messages.push(toUserParam(user, imageData), toAssistantParam(reply))
+    messages.push(toUserParam(user, imageData, documentText), toAssistantParam(reply))
   }
   appendReminder(latestReminder)
-  messages.push(toUserParam(question, imageData))
+  messages.push(toUserParam(question, imageData, documentText))
   if (prefix?.prefix) {
     const assistant = toAssistantParam(prefix, true, thinking)
     // 没有非空白正文或有效思考时直接重发原问题，避免服务端拒绝空 Prefill。

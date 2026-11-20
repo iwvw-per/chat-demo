@@ -99,14 +99,11 @@ const bearerHeaders = (config: ProviderConfig): Record<string, string> => ({
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-/** 客户端声明了 deepseek_web_search / deepseek_read_url 时改走适配器,由服务端执行搜索 */
+/** 仅在用户开启智能搜索(声明 deepseek_web_search)时改走适配器,由服务端执行搜索 */
 const hasSearchTools = (body: unknown): boolean =>
   isRecord(body) &&
   Array.isArray(body.tools) &&
-  body.tools.some(
-    (tool) =>
-      isRecord(tool) && (tool.type === 'deepseek_web_search' || tool.type === 'deepseek_read_url')
-  )
+  body.tools.some((tool) => isRecord(tool) && tool.type === 'deepseek_web_search')
 
 export const proxyRouter = Router()
 

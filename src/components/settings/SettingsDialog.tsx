@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   IconDarkOutline16,
   IconDataOutline16,
@@ -59,6 +59,13 @@ const SettingsContent = () => {
   const historyDelete = useHistoryDelete()
   const replacingHistory = useChatStore((state) => state.importingHistory)
   const historyBusy = historyImport.busy || historyDelete.busy || replacingHistory
+  const navRef = useRef<HTMLDivElement>(null)
+  // 移动端导航横向滚动时把当前分组滚入视野
+  useEffect(() => {
+    navRef.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' })
+  }, [section])
   const sections: SectionItem[] = [
     {
       value: 'general',
@@ -90,7 +97,7 @@ const SettingsContent = () => {
           }
         }}
       >
-        <div role="tablist" className={styles.navigation}>
+        <div role="tablist" ref={navRef} className={styles.navigation}>
           {sections.map((item) => (
             <button
               key={item.value}

@@ -1,9 +1,11 @@
 import clsx from 'clsx'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAnchoredPosition, useDismiss } from './anchored.js'
 import { IconCheckOutline16, IconChevronDownOutline14 } from './icons.js'
 import styles from './Select.module.css'
+
+const EXIT_DURATION = 120
 
 export type SelectOption<T extends string> = { value: T; label: string; lang?: string }
 
@@ -29,14 +31,30 @@ export const Select = <T extends string>({
   disabled?: boolean
 }) => {
   const [open, setOpen] = useState(false)
+  const [closing, setClosing] = useState(false)
+  const visible = open || closing
+
+  useEffect(() => {
+    if (!closing) {
+      return
+    }
+    const timer = window.setTimeout(() => setClosing(false), EXIT_DURATION)
+    return () => window.clearTimeout(timer)
+  }, [closing])
+
+  const close = () => {
+    setOpen(false)
+    setClosing(true)
+  }
+
   const current = options.find((option) => option.value === value)
   // 菜单贴右侧展开，最多 320px 高，超出在菜单内滚动
   const { anchorRef, floatingRef, position } = useAnchoredPosition<
     HTMLButtonElement,
     HTMLDivElement
-  >(open, { align: 'end', maxHeight: 320, minSpace: 160 })
+  >(visible, { align: 'end', maxHeight: 320, minSpace: 160 })
   // Esc 只关菜单，不让外层弹窗一起关闭
-  useDismiss(open, [anchorRef, floatingRef], () => setOpen(false), { captureEscape: true })
+  useDismiss(open, [anchorRef, floatingRef], close, { captureEscape: true })
 
   return (
     <>
@@ -48,7 +66,14 @@ export const Select = <T extends string>({
         aria-haspopup="listbox"
         aria-expanded={open}
         disabled={disabled}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (open) {
+            close()
+            return
+          }
+          setClosing(false)
+          setOpen(true)
+        }}
       >
         {current ? (
           <span lang={current.lang}>{current.label}</span>
@@ -59,12 +84,12 @@ export const Select = <T extends string>({
           <IconChevronDownOutline14 />
         </span>
       </button>
-      {open && !disabled
+      {visible && !disabled
         ? createPortal(
             <div
               ref={floatingRef}
-              className={styles.menu}
-              style={position ?? undefined}
+              className={clsx(styles.menu, closing && styles.closing)}
+              style={position ?? { visibility: 'hidden' as const }}
               role="listbox"
               aria-label={ariaLabel}
             >
@@ -76,7 +101,7 @@ export const Select = <T extends string>({
                   aria-selected={option.value === value}
                   className={styles.option}
                   onClick={() => {
-                    setOpen(false)
+                    close()
                     onChange(option.value)
                   }}
                 >

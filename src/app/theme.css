@@ -14,15 +14,24 @@ body {
 
   --ds-font-size-m: 14px;
 
-  --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ds-duration-fast: 0.12s;
+  --ds-duration-base: 0.18s;
+  --ds-duration-medium: 0.24s;
+  --ds-duration-slow: 0.32s;
+
+  --ds-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ds-ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --ds-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ds-ease-emphasis: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --ds-ease-in-out: var(--ds-ease-standard);
+  --ds-transition-duration: var(--ds-duration-base);
+  --ds-transition-duration-slow: var(--ds-duration-slow);
 
   --ds-font-family-code:
     Menlo, Monaco, Consolas, 'Cascadia Mono', 'Ubuntu Mono', 'DejaVu Sans Mono', 'Liberation Mono',
     'JetBrains Mono', 'Fira Code', Cousine, 'Roboto Mono', 'Courier New', Courier, sans-serif,
     system-ui;
-
-  --ds-transition-duration: 0.2s;
-  --ds-transition-duration-slow: 0.3s;
 }
 
 body {

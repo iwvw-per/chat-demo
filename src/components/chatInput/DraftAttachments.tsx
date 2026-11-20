@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import { useUploads, type UploadTask } from '../../services/attachments.js'
 import type { DraftAttachment } from '../../services/chat/drafts.js'
@@ -9,6 +9,8 @@ import { FileCard } from '../files/FileCard.js'
 import styles from './ChatInput.module.css'
 
 const UPLOADING: UploadTask = { status: 'uploading' }
+
+const REMOVE_ANIMATION_MS = 160
 
 /** 列表只随草稿附件变化更新；每张卡片独立订阅自己的上传状态。 */
 export const DraftAttachments = memo(function DraftAttachments({
@@ -20,8 +22,19 @@ export const DraftAttachments = memo(function DraftAttachments({
   onRetry: (id: string) => void
   onRemove: (id: string) => void
 }) {
+  const [removing, setRemoving] = useState<string[]>([])
   if (items.length === 0) {
     return null
+  }
+  const remove = (id: string) => {
+    if (removing.includes(id)) {
+      return
+    }
+    setRemoving((ids) => [...ids, id])
+    setTimeout(() => {
+      onRemove(id)
+      setRemoving((ids) => ids.filter((item) => item !== id))
+    }, REMOVE_ANIMATION_MS)
   }
   return (
     <div className={styles.attachments}>
@@ -29,8 +42,9 @@ export const DraftAttachments = memo(function DraftAttachments({
         <AttachmentItem
           key={item.id}
           item={item}
+          removing={removing.includes(item.id)}
           onRetry={() => onRetry(item.id)}
-          onRemove={() => onRemove(item.id)}
+          onRemove={() => remove(item.id)}
         />
       ))}
     </div>
@@ -40,10 +54,12 @@ export const DraftAttachments = memo(function DraftAttachments({
 /** 输入框里的文件：图片显示缩略图，其余显示文件卡片 */
 const AttachmentItem = ({
   item,
+  removing,
   onRetry,
   onRemove,
 }: {
   item: DraftAttachment
+  removing: boolean
   onRetry: () => void
   onRemove: () => void
 }) => {
@@ -59,7 +75,11 @@ const AttachmentItem = ({
   const showReason = failed && error !== undefined && error !== t('uploadFileStatusFailed')
   return item.previewUrl ? (
     <div
-      className={clsx(styles.attachment, failed && styles.attachmentFailed)}
+      className={clsx(
+        styles.attachment,
+        failed && styles.attachmentFailed,
+        removing && styles.removing
+      )}
       title={error ?? item.file.name}
     >
       <img src={item.previewUrl} alt={item.file.name} />
@@ -88,6 +108,7 @@ const AttachmentItem = ({
     </div>
   ) : (
     <FileCard
+      className={removing ? styles.removing : undefined}
       name={item.file.name}
       size={item.file.size}
       status={status}

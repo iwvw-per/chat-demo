@@ -12,50 +12,60 @@ import styles from './SessionItem.module.css'
 export const SessionItem = memo(function SessionItem({
   session,
   active,
+  entering = false,
+  removing = false,
   onDelete,
 }: {
   session: SessionSummary
   active: boolean
+  entering?: boolean
+  removing?: boolean
   onDelete: () => void
 }) {
   const t = useTranslate()
   const [editing, setEditing] = useState(false)
   const displayTitle = session.title || t('untitledChat')
-
-  if (editing) {
-    const finish = (title: string) => {
-      setEditing(false)
-      if (title.trim() && title.trim() !== displayTitle) {
-        renameSession(session.id, title.trim())
-      }
+  const finish = (title: string) => {
+    setEditing(false)
+    if (title.trim() && title.trim() !== displayTitle) {
+      renameSession(session.id, title.trim())
     }
-    return (
-      <input
-        className={styles.renameInput}
-        defaultValue={displayTitle}
-        autoFocus
-        onFocus={(event) => event.target.select()}
-        onBlur={(event) => finish(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
-            finish(event.currentTarget.value)
-          } else if (event.key === 'Escape') {
-            setEditing(false)
-          }
-        }}
-      />
-    )
   }
 
   return (
     <div
-      className={clsx(styles.item, active && styles.active)}
+      className={clsx(
+        styles.item,
+        active && styles.active,
+        editing && styles.editing,
+        entering && styles.entering,
+        removing && styles.removing,
+      )}
       onClick={() => {
+        if (editing) {
+          return
+        }
         selectSession(session.id)
         closeMobileSider()
       }}
     >
       <div className={styles.title}>{displayTitle}</div>
+      {editing ? (
+        <input
+          className={styles.renameInput}
+          defaultValue={displayTitle}
+          autoFocus
+          onFocus={(event) => event.target.select()}
+          onBlur={(event) => finish(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+              finish(event.currentTarget.value)
+            } else if (event.key === 'Escape') {
+              setEditing(false)
+            }
+          }}
+        />
+      ) : null}
       <div className={styles.action} onClick={(event) => event.stopPropagation()}>
         <Menu
           options={[

@@ -26,11 +26,11 @@
   animation: fading 0.9s linear infinite;
 
   &:nth-child(2) {
-    animation-delay: 0.1s;
+    animation-delay: var(--ds-duration-fast);
   }
 
   &:nth-child(3) {
-    animation-delay: 0.2s;
+    animation-delay: var(--ds-duration-base);
   }
 }
 
@@ -121,7 +121,7 @@
   font: var(--dsw-font-markdown-small);
   cursor: pointer;
   user-select: none;
-  transition: background-color 0.3s;
+  transition: background-color var(--ds-duration-slow);
 
   > span:first-child {
     margin-left: 0;
@@ -135,5 +135,27 @@
   &.summaryActive {
     background-color: var(--dsw-alias-interactive-bg-hover);
     --search-row-site-logo-color: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+@media (hover: none) {
+  .actions {
+    opacity: 1;
+  }
+}
+
+.entering {
+  animation: messageEnter var(--ds-duration-base) var(--ds-ease-enter);
+}
+
+@keyframes messageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

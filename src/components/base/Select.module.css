@@ -75,6 +75,7 @@
     0 0 1px 0 rgba(0, 0, 0, 0.2),
     0 0 4px 0 rgba(0, 0, 0, 0.02),
     0 12px 32px 0 rgba(0, 0, 0, 0.08);
+  animation: menuIn var(--ds-duration-fast) var(--ds-ease-enter);
 }
 
 .option {
@@ -96,5 +97,24 @@
 
   &:hover {
     background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.closing {
+  animation: menuOut var(--ds-duration-fast) var(--ds-ease-exit) forwards;
+  pointer-events: none;
+}
+
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes menuOut {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
   }
 }

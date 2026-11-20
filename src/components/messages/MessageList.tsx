@@ -5,7 +5,7 @@ import {
   getVisibleMessages,
   type MessageVersions,
 } from '../../services/chat/branches.js'
-import { selectMessageVersion } from '../../services/chat/store.js'
+import { consumeFreshSession, selectMessageVersion } from '../../services/chat/store.js'
 import type { Session } from '../../services/chat/types.js'
 import { closeSearchPanel } from '../search/searchPanelState.js'
 import { AssistantMessage } from './AssistantMessage.js'
@@ -48,7 +48,20 @@ export const MessageList = ({
   const stickyRef = useRef(true)
   const scrollTopRef = useRef(0)
   const restoreScrollRef = useRef<{ messageId: string; top: number } | null>(null)
+  const enterStateRef = useRef({
+    sessionId: session.id,
+    hydrated: false,
+    baseline: new Set<string>(),
+  })
   const messages = getVisibleMessages(session)
+  if (enterStateRef.current.sessionId !== session.id) {
+    enterStateRef.current = { sessionId: session.id, hydrated: false, baseline: new Set<string>() }
+  }
+  // 新增消息位于可见列表末尾(含尾部成对追加)时入场,中间位置(如切换版本)不受 transform 影响。
+  const isEnteringMessage = (id: string, index: number) =>
+    index >= messages.length - 2 &&
+    enterStateRef.current.hydrated &&
+    !enterStateRef.current.baseline.has(id)
   const [previousVersions, setPreviousVersions] = useState(() =>
     buildMessageVersions(session, new Map())
   )
@@ -100,6 +113,17 @@ export const MessageList = ({
   }, [session.id, lastMessageId, scrollToBottom])
 
   useEffect(closeSearchPanel, [session.id, lastMessageId])
+
+  // 首帧渲染只记录基线快照、不播放入场动画,之后新出现的消息才标记为 entering。
+  useEffect(() => {
+    const state = enterStateRef.current
+    if (!state.hydrated) {
+      state.hydrated = true
+      state.baseline = consumeFreshSession(session.id)
+        ? new Set<string>()
+        : new Set(getVisibleMessages(session).map((message) => message.id))
+    }
+  }, [session])
 
   const selectVersion = useCallback(
     (messageId: string, anchorTop: number) => {
@@ -156,6 +180,7 @@ export const MessageList = ({
                   isFirst={index === 0}
                   isLast={index === lastIndex || index === lastIndex - 1}
                   busy={streaming}
+                  entering={isEnteringMessage(message.id, index)}
                   versions={versions.get(message.id) ?? EMPTY_VERSIONS}
                   onSelectVersion={selectVersion}
                 />
@@ -167,6 +192,7 @@ export const MessageList = ({
                   isLast={index === lastIndex}
                   streaming={streaming && index === lastIndex}
                   busy={streaming}
+                  entering={isEnteringMessage(message.id, index)}
                   versions={versions.get(message.id) ?? EMPTY_VERSIONS}
                   onSelectVersion={selectVersion}
                 />

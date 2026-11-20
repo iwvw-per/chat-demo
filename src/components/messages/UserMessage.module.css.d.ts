@@ -10,6 +10,8 @@ declare const styles: {
   readonly "editor": string;
   readonly "textarea": string;
   readonly "editorActions": string;
+  readonly "entering": string;
+  readonly "messageEnter": string;
 };
 export = styles;
 

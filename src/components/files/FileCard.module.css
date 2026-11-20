@@ -11,7 +11,7 @@
   border: 1px solid var(--dsw-alias-border-l2);
   background-color: var(--dsw-specific-input-major);
   cursor: default;
-  transition: background-color 0.2s ease-in-out;
+  transition: background-color var(--ds-duration-base) var(--ds-ease-standard);
 
   &:hover .remove {
     opacity: 1;
@@ -62,13 +62,7 @@
   border-radius: 50%;
   border: 2px solid var(--dsw-alias-border-l2);
   border-top-color: var(--dsw-alias-label-tertiary);
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  animation: ds-spin 0.8s linear infinite;
 }
 
 .content {
@@ -113,11 +107,17 @@
   background-color: var(--dsw-alias-button-contrast-fill);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.2s ease-in-out;
+  transition: opacity var(--ds-duration-base) var(--ds-ease-standard);
 }
 
 .invalidRemove {
   opacity: 1;
   color: var(--dsw-alias-label-primary-foreground);
   background-color: var(--dsw-alias-state-error-primary);
+}
+
+@media (hover: none) {
+  .remove {
+    opacity: 1;
+  }
 }

@@ -102,3 +102,25 @@
   gap: 8px;
   margin: 6px 10px 10px;
 }
+
+@media (hover: none) {
+  .actions {
+    opacity: 1;
+  }
+}
+
+.entering {
+  animation: messageEnter var(--ds-duration-base) var(--ds-ease-enter);
+}
+
+@keyframes messageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

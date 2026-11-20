@@ -16,6 +16,7 @@ export const FileCard = ({
   size,
   status = 'done',
   error,
+  className,
   onRetry,
   onRemove,
   onOpen,
@@ -24,6 +25,7 @@ export const FileCard = ({
   size: number
   status?: 'uploading' | 'done' | 'error'
   error?: string
+  className?: string
   onRetry?: () => void
   onRemove?: () => void
   onOpen?: () => void
@@ -49,7 +51,8 @@ export const FileCard = ({
         styles.card,
         onRemove && styles.editable,
         status === 'error' && (onRemove || onRetry) && styles.failed,
-        onClick && styles.clickable
+        onClick && styles.clickable,
+        className
       )}
       title={
         status === 'error'

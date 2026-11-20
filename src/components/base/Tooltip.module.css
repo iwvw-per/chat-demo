@@ -14,6 +14,7 @@
   font-size: 12px;
   line-height: 1.5;
   pointer-events: none;
+  animation: ds-fade var(--ds-duration-fast) var(--ds-ease-enter);
 
   [data-ds-dark-theme] & {
     color: var(--dsw-alias-label-primary);

@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslate } from '../../i18n/index.js'
 import { IconCloseOutline16 } from './icons.js'
@@ -8,6 +8,8 @@ import styles from './Modal.module.css'
 
 /** 当前打开的弹窗，后打开的在末尾；叠放时 Esc 只关闭最上层 */
 const openModals: object[] = []
+
+const EXIT_DURATION = 160
 
 /** 遮罩 + 居中卡片，Esc / 点遮罩关闭 */
 export const Modal = ({
@@ -33,6 +35,28 @@ export const Modal = ({
   const titleId = useId()
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  const overlayRef = useRef<HTMLDivElement | null>(null)
+  const keepOverlay = useCallback((node: HTMLDivElement | null) => {
+    if (node) {
+      overlayRef.current = node
+    }
+  }, [])
+
+  useEffect(
+    () => () => {
+      const node = overlayRef.current
+      if (!node) {
+        return
+      }
+      const clone = node.cloneNode(true) as HTMLDivElement
+      clone.classList.add(styles.closing)
+      clone.setAttribute('aria-hidden', 'true')
+      clone.style.pointerEvents = 'none'
+      document.body.appendChild(clone)
+      window.setTimeout(() => clone.remove(), EXIT_DURATION)
+    },
+    []
+  )
   useEffect(() => {
     const token = {}
     openModals.push(token)
@@ -50,6 +74,7 @@ export const Modal = ({
 
   return createPortal(
     <div
+      ref={keepOverlay}
       className={styles.overlay}
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >

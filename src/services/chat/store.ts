@@ -86,6 +86,11 @@ export const useChatStore = create<ChatState>(() => ({
 
 const { getState: get, setState: set } = useChatStore
 
+/** 新建会话的首轮消息也要播入场动画:标记只被消费一次 */
+const freshSessions = new Set<string>()
+
+export const consumeFreshSession = (id: string): boolean => freshSessions.delete(id)
+
 const sortSessions = (sessions: SessionSummary[]) =>
   [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)
 
@@ -611,6 +616,7 @@ export const sendMessage = (targetSessionId: string | null) => {
       rootMessageId: null,
     }
     sessionId = session.id
+    freshSessions.add(session.id)
     touchSession(session.id)
     set((state) => ({
       sessions: [toSessionSummary(session), ...state.sessions],

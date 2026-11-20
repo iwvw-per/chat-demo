@@ -43,6 +43,18 @@ body.change-theme *::after {
   transition: none !important;
 }
 
+/** 减少动态效果:统一兜底,避免逐文件遗漏 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @media not all and (min-width: 768px) {
   html,
   body,

@@ -24,6 +24,7 @@ export const UserMessage = memo(function UserMessage({
   isFirst,
   isLast,
   busy,
+  entering,
   versions,
   onSelectVersion,
 }: {
@@ -34,6 +35,7 @@ export const UserMessage = memo(function UserMessage({
   isFirst: boolean
   isLast: boolean
   busy: boolean
+  entering: boolean
   versions: MessageVersions
   onSelectVersion: SelectMessageVersion
 }) {
@@ -60,7 +62,7 @@ export const UserMessage = memo(function UserMessage({
   }
 
   return (
-    <div className={clsx(styles.container, isFirst && styles.isFirst)}>
+    <div className={clsx(styles.container, isFirst && styles.isFirst, entering && styles.entering)}>
       {message.files.length > 0 ? (
         <div
           className={clsx(

@@ -91,7 +91,7 @@ export const App = () => {
             <Sider />
           </div>
         )}
-        <main className={styles.main}>
+        <main className={clsx(styles.main, !isMobile && !siderCollapsed && styles.mainIndented)}>
           {announcement ? (
             <div className={styles.announcement} role="status">
               {announcement}
@@ -111,7 +111,6 @@ export const App = () => {
             </div>
           ) : null}
           <div className={styles.content}>
-            <CollapsedSider hidden={!siderCollapsed} />
             {!ready || (activeId !== null && !session) ? (
               <div className={styles.loadingView}>
                 {isMobile ? <MobileHeader /> : null}
@@ -149,6 +148,7 @@ export const App = () => {
             )}
           </div>
         </main>
+        {isMobile ? null : <CollapsedSider hidden={!siderCollapsed} />}
         <SearchPanel />
       </div>
       <SettingsDialog />

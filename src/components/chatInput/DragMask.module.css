@@ -10,6 +10,7 @@
   background-color: rgba(255, 255, 255, 0.7);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
+  animation: ds-fade var(--ds-duration-base) var(--ds-ease-enter);
 
   [data-ds-dark-theme] & {
     background-color: rgba(39, 39, 48, 0.7);
@@ -26,6 +27,7 @@
   padding: 0 40px;
   color: var(--dsw-alias-label-primary);
   text-align: center;
+  animation: ds-fade-up var(--ds-duration-medium) var(--ds-ease-enter);
 }
 
 .title {

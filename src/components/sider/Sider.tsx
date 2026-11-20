@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslate } from '../../i18n/index.js'
 import { useProvider } from '../../services/provider.js'
 import logoUrl from '../../assets/deepseek.svg'
@@ -17,6 +17,9 @@ import { closeMobileSider, useMobileSider } from './mobileSiderState.js'
 import { SessionItem } from './SessionItem.js'
 import styles from './Sider.module.css'
 
+/** 会话项入场/退场动画时长,与 SessionItem.module.css 保持一致 */
+const SESSION_ITEM_ANIMATION_MS = 160
+
 /** 展开的侧边栏：名称与收起按钮、开启新对话、按时间分组的会话列表、底部设置；移动端放在抽屉里，收起按钮关闭抽屉 */
 export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   const t = useTranslate()
@@ -27,6 +30,26 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
   const groups = useMemo(() => groupSessions(sessions, now, t), [sessions, now, t])
   const [deleting, setDeleting] = useState<SessionSummary | null>(null)
   const [deletePending, setDeletePending] = useState(false)
+  const [enteringIds, setEnteringIds] = useState<ReadonlySet<string>>(() => new Set<string>())
+  const [removingId, setRemovingId] = useState<string | null>(null)
+  const knownIdsRef = useRef<Set<string> | null>(null)
+
+  useLayoutEffect(() => {
+    const known = knownIdsRef.current
+    knownIdsRef.current = new Set(sessions.map((session) => session.id))
+    if (!known) {
+      return
+    }
+    const added = sessions
+      .filter((session) => !known.has(session.id))
+      .map((session) => session.id)
+    if (added.length === 0) {
+      return
+    }
+    setEnteringIds(new Set(added))
+    const timer = setTimeout(() => setEnteringIds(new Set<string>()), SESSION_ITEM_ANIMATION_MS)
+    return () => clearTimeout(timer)
+  }, [sessions])
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>
@@ -92,6 +115,8 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
                   key={session.id}
                   session={session}
                   active={session.id === activeId}
+                  entering={enteringIds.has(session.id)}
+                  removing={session.id === removingId}
                   onDelete={() => setDeleting(session)}
                 />
               ))}
@@ -125,13 +150,16 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
                 disabled={deletePending}
                 onClick={async () => {
                   setDeletePending(true)
+                  setRemovingId(deleting.id)
                   try {
+                    await new Promise((resolve) => setTimeout(resolve, SESSION_ITEM_ANIMATION_MS))
                     if (await removeSession(deleting.id)) {
                       setDeleting(null)
                     } else {
                       showToast({ key: 'sessionDeleteFailed', type: 'error' })
                     }
                   } finally {
+                    setRemovingId(null)
                     setDeletePending(false)
                   }
                 }}
@@ -149,6 +177,11 @@ export const Sider = ({ mobile = false }: { mobile?: boolean }) => {
 }
 
 /** 移动端抽屉：浮在页面上方，点空白区域关闭。 */
+const DRAWER_TRANSITION_MS = 240
+
+const drawerTransitionMs = () =>
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : DRAWER_TRANSITION_MS
+
 export const MobileSider = () => {
   const open = useMobileSider((state) => state.open)
   // 收起时先播放退场过渡,再卸载抽屉
@@ -162,7 +195,7 @@ export const MobileSider = () => {
       return () => cancelAnimationFrame(frame)
     }
     setActive(false)
-    const timer = setTimeout(() => setMounted(false), 240)
+    const timer = setTimeout(() => setMounted(false), drawerTransitionMs())
     return () => clearTimeout(timer)
   }, [open])
 

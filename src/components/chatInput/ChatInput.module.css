@@ -40,6 +40,15 @@
   cursor: default;
 }
 
+.attachments > * {
+  animation: ds-scale-in var(--ds-duration-base) var(--ds-ease-enter);
+}
+
+.removing {
+  animation: ds-fade-down-out var(--ds-duration-base) var(--ds-ease-exit) forwards;
+  pointer-events: none;
+}
+
 .attachment {
   position: relative;
   flex-shrink: 0;
@@ -79,13 +88,7 @@
     border-radius: 50%;
     border: 2px solid rgba(255, 255, 255, 0.4);
     border-top-color: #fff;
-    animation: spin 0.8s linear infinite;
-  }
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+    animation: ds-spin 0.8s linear infinite;
   }
 }
 
@@ -153,7 +156,7 @@
   filter: drop-shadow(0 0 0.5px rgba(0, 0, 0, 0.2));
   cursor: pointer;
   opacity: 0;
-  transition: opacity var(--ds-transition-duration) var(--ds-ease-in-out);
+  transition: opacity var(--ds-duration-base) var(--ds-ease-standard);
 }
 
 /* 不可重试时删除按钮常显，提示需要先删除 */
@@ -161,6 +164,12 @@
   opacity: 1;
   color: var(--dsw-alias-label-primary-foreground);
   background-color: var(--dsw-alias-state-error-primary);
+}
+
+@media (hover: none) {
+  .remove {
+    opacity: 1;
+  }
 }
 
 .textareaWrapper {
@@ -274,8 +283,9 @@
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
-  transition-property: border, background;
-  transition-duration: 0.2s;
+  transition-property: border-color, background-color;
+  transition-duration: var(--ds-duration-base);
+  transition-timing-function: var(--ds-ease-standard);
 
   &:hover:not(:disabled) {
     background-color: var(--dsw-alias-interactive-bg-hover);
@@ -319,7 +329,7 @@
   background: var(--dsw-alias-button-primary-fill);
   color: var(--dsw-static-neutral-bluish-00);
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background-color var(--ds-duration-base) var(--ds-ease-standard);
 
   &:not(.disabled):hover {
     background: var(--dsw-alias-button-primary-hover);

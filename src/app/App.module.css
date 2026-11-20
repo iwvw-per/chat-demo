@@ -12,18 +12,29 @@
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  padding-left: 0;
+  transition: padding-left var(--ds-duration-medium) var(--ds-ease-standard);
+}
+
+.mainIndented {
+  padding-left: 261px;
 }
 
 .siderSlot {
-  flex-shrink: 0;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 30;
   width: 261px;
   height: 100%;
   overflow: hidden;
   opacity: 1;
   visibility: visible;
+  transform: translateX(0);
   transition:
-    width 0.28s var(--ds-ease-in-out),
-    opacity 0.18s var(--ds-ease-in-out),
+    transform var(--ds-duration-medium) var(--ds-ease-standard),
+    opacity var(--ds-duration-medium) var(--ds-ease-standard),
     visibility 0s;
 }
 
@@ -32,16 +43,18 @@
 }
 
 .siderSlotCollapsed {
-  width: 0;
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
+  transform: translateX(-100%);
   transition:
-    width 0.28s var(--ds-ease-in-out),
-    opacity 0.18s var(--ds-ease-in-out),
-    visibility 0s 0.28s;
+    transform var(--ds-duration-medium) var(--ds-ease-standard),
+    opacity var(--ds-duration-medium) var(--ds-ease-standard),
+    visibility 0s var(--ds-duration-medium);
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .main,
   .siderSlot,
   .siderSlotCollapsed {
     transition: none;

@@ -4,6 +4,30 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#ffffff" />
+    <script>
+      // 首屏按本地主题偏好预置深色根背景,避免样式表加载前的白屏闪烁
+      (function () {
+        try {
+          var preference = localStorage.getItem('chat-demo:theme-preference') || 'system'
+          var dark =
+            preference === 'dark' ||
+            (preference === 'system' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches)
+          if (!dark) {
+            return
+          }
+          var background = 'rgb(21, 21, 23)'
+          document.documentElement.style.backgroundColor = background
+          document.documentElement.style.colorScheme = 'dark'
+          var meta = document.querySelector('meta[name="theme-color"]')
+          if (meta) {
+            meta.setAttribute('content', background)
+          }
+        } catch (error) {
+          // 隐私模式下 localStorage 不可用,忽略即可
+        }
+      })()
+    </script>
     <title>DeepSeek</title>
     <link
       rel="icon"

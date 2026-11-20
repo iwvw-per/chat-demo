@@ -8,20 +8,10 @@
   justify-content: center;
   background-color: rgba(0, 0, 0, var(--overlay-opacity));
   backdrop-filter: blur(2px);
-  animation: overlayIn 0.18s var(--ds-ease-in-out);
+  animation: ds-fade var(--ds-duration-base) var(--ds-ease-enter);
 
   [data-ds-dark-theme] & {
     --overlay-opacity: 0.6;
-  }
-}
-
-@keyframes overlayIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
   }
 }
 
@@ -42,19 +32,7 @@
     0 0 1px 0 rgba(0, 0, 0, 0.2),
     0 0 4px 0 rgba(0, 0, 0, 0.02),
     0 12px 32px 0 rgba(0, 0, 0, 0.08);
-  animation: contentIn 0.22s var(--ds-ease-in-out);
-}
-
-@keyframes contentIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.98);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
+  animation: ds-scale-in var(--ds-duration-base) var(--ds-ease-enter);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -96,4 +74,13 @@
   justify-content: flex-end;
   gap: 8px;
   margin-top: 20px;
+}
+
+.closing {
+  animation: ds-fade-out 160ms var(--ds-ease-exit) forwards;
+  pointer-events: none;
+}
+
+.closing * {
+  animation: none !important;
 }

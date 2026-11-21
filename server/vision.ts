@@ -64,8 +64,51 @@ const declaredTools = (body: Value): string[] => {
   return [...new Set(names)]
 }
 
+/** 模型原生 DSML 工具调用标记,上游偶尔漏解析会把它混进响应正文 */
+const DSML_START_RE = /<(\/)?[|｜]+DSML/
+const DSML_MARKER_PREFIX_RE = /^<(\/)?([|｜]*(D(S(M(L)?)?)?)?[|｜]*)?$/
+
 const blocksOf = (value: unknown): Value[] =>
   Array.isArray(value) ? value.filter(isRecord) : []
+
+const ATTRIBUTE_RE = /name\s*=\s*"([^"]+)"/
+
+/** 把 DSML 调用块解析成与 OpenAI tool_calls 同形的 name/args */
+const parseDsmlCalls = (raw: string): { name: string; args: string }[] => {
+  const calls: { name: string; args: Record<string, string> }[] = []
+  const tagRe = /<(\/)?[|｜]+DSML[|｜]+\s*([A-Za-z_]*)([^>]*)>/g
+  let current: { name: string; args: Record<string, string> } | null = null
+  let param: string | null = null
+  let cursor = 0
+  let match: RegExpExecArray | null
+  while ((match = tagRe.exec(raw)) !== null) {
+    const inner = raw.slice(cursor, match.index)
+    if (param && current) {
+      current.args[param] = inner.trim()
+    }
+    cursor = match.index + match[0].length
+    const closing = match[1] === '/'
+    const tag = match[2]
+    if (tag === 'invoke') {
+      if (closing) {
+        current = null
+        param = null
+      } else {
+        const name = ATTRIBUTE_RE.exec(match[3] ?? '')
+        current = { name: name ? name[1] : '', args: {} }
+        calls.push(current)
+      }
+    } else if (tag === 'parameter') {
+      if (closing) {
+        param = null
+      } else {
+        const name = ATTRIBUTE_RE.exec(match[3] ?? '')
+        param = name ? name[1] : null
+      }
+    }
+  }
+  return calls.map((call) => ({ name: call.name, args: JSON.stringify(call.args) }))
+}
 
 const isInlineImage = (block: Value): block is InlineImageBlock =>
   block.type === 'image' &&
@@ -372,6 +415,96 @@ export const handleChatMessage = async (
   }
 
   const pendingCalls = new Map<number, { id: string; name: string; args: string }>()
+  let pendingText = ''
+  let dsmlCallIndex = 0
+
+  const emitText = (text: string) => {
+    if (!text) {
+      return
+    }
+    openText()
+    answer += text
+    roundText += text
+    sendEvent(res, 'content_block_delta', {
+      type: 'content_block_delta',
+      index: textIndex,
+      delta: { type: 'text_delta', text },
+    })
+  }
+
+  const addDsmlCalls = (raw: string) => {
+    for (const call of parseDsmlCalls(raw)) {
+      pendingCalls.set(1000 + dsmlCallIndex, {
+        id: `call_dsml_${dsmlCallIndex}`,
+        name: call.name,
+        args: call.args,
+      })
+      dsmlCallIndex += 1
+    }
+  }
+
+  /** 返回已消费的字符数;返回 -1 表示 DSML 块还没收完,继续等待后续增量 */
+  const consumeDsml = (final: boolean): number => {
+    const raw = pendingText
+    const tagRe = /<(\/)?[|｜]+DSML[|｜]+\s*([A-Za-z_]*)([^>]*)>/g
+    let sawCalls = false
+    let depth = 0
+    let match: RegExpExecArray | null
+    while ((match = tagRe.exec(raw)) !== null) {
+      const end = match.index + match[0].length
+      const closing = match[1] === '/'
+      const tag = match[2]
+      if (tag === 'calls') {
+        if (closing) {
+          depth -= 1
+          if (depth <= 0) {
+            addDsmlCalls(raw.slice(0, end))
+            return end
+          }
+        } else {
+          depth += 1
+          sawCalls = true
+        }
+        continue
+      }
+      if (!sawCalls && tag === 'invoke' && closing && !/^\s*<(\/)?[|｜]+DSML/.test(raw.slice(end))) {
+        addDsmlCalls(raw.slice(0, end))
+        return end
+      }
+    }
+    return final ? raw.length : -1
+  }
+
+  /** 逐步放出正文,把 DSML 块挡在输出之外(不完整时先缓存,避免标记漏出) */
+  const flushText = (final: boolean) => {
+    for (;;) {
+      const start = pendingText.search(DSML_START_RE)
+      if (start >= 0) {
+        emitText(pendingText.slice(0, start))
+        pendingText = pendingText.slice(start)
+        const consumed = consumeDsml(final)
+        if (consumed < 0) {
+          return
+        }
+        pendingText = pendingText.slice(consumed)
+        continue
+      }
+      if (final) {
+        emitText(pendingText)
+        pendingText = ''
+        return
+      }
+      const lt = pendingText.lastIndexOf('<')
+      if (lt >= 0 && DSML_MARKER_PREFIX_RE.test(pendingText.slice(lt))) {
+        emitText(pendingText.slice(0, lt))
+        pendingText = pendingText.slice(lt)
+        return
+      }
+      emitText(pendingText)
+      pendingText = ''
+      return
+    }
+  }
 
   const processPayload = (payload: Value) => {
     if (isRecord(payload.usage)) {
@@ -398,14 +531,8 @@ export const handleChatMessage = async (
     const content = textOf(delta.content)
     if (content) {
       closeThinking()
-      openText()
-      answer += content
-      roundText += content
-      sendEvent(res, 'content_block_delta', {
-        type: 'content_block_delta',
-        index: textIndex,
-        delta: { type: 'text_delta', text: content },
-      })
+      pendingText += content
+      flushText(false)
     }
     for (const call of blocksOf(delta.tool_calls)) {
       const index = Number(call.index) || 0
@@ -458,6 +585,7 @@ export const handleChatMessage = async (
   const runRound = async (payload: Value) => {
     pendingCalls.clear()
     roundText = ''
+    pendingText = ''
     let upstream: globalThis.Response
     try {
       upstream = await fetch(
@@ -526,6 +654,7 @@ export const handleChatMessage = async (
       res.end()
       return false
     }
+    flushText(true)
     return true
   }
 
@@ -615,6 +744,14 @@ export const handleChatMessage = async (
     })
     for (const result of results) {
       rounds.push({ role: 'tool', tool_call_id: result.id, content: result.content })
+    }
+  }
+
+  /** 剥离 DSML 后可能只剩工具调用;补一轮不带工具的请求,确保有正文收尾 */
+  if (!answer) {
+    const finalRound = await runRound({ ...basePayload, messages: rounds, tools: undefined })
+    if (!finalRound) {
+      return
     }
   }
 

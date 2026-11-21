@@ -12,7 +12,7 @@ type OpenAIContentPart =
   | { type: 'image_url'; image_url: { url: string } }
 
 type OpenAIMessage = {
-  role: 'system' | 'user' | 'assistant' | 'tool'
+  role: 'system' | 'user' | 'assistant' | 'tool' | 'latest_reminder'
   content: string | OpenAIContentPart[]
   tool_calls?: { id: string; type: 'function'; function: { name: string; arguments: string } }[]
   tool_call_id?: string
@@ -132,6 +132,10 @@ const toOpenAIMessages = (
   }
   for (const message of blocksOf(body.messages)) {
     if (message.role === 'latest_reminder') {
+      // 上游原生支持该角色;透传后模型才拿得到当前日期、地区等实时信息
+      if (typeof message.content === 'string' && message.content) {
+        messages.push({ role: 'latest_reminder', content: message.content })
+      }
       continue
     }
     if (message.role === 'user') {
